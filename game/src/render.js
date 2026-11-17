@@ -1,66 +1,61 @@
-// All canvas drawing: the neon field, entities, HUD, and every screen
-// (title, level-up, pause, victory, game over). No game logic lives here;
-// it only reads world.state and paints it.
+// All canvas drawing for the play field: the themed zone background,
+// entities, and HUD. Screens (title, level-up, pause, victory, game over)
+// live in screens.js; this file paints the world and delegates to them.
+// No game logic lives here; it only reads world.state and paints it.
 import { FIELD, COLORS, BOSS } from './config.js';
 import { mulberry32 } from './random.js';
+import { ZONES } from './zones.js';
+import {
+  SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_PAUSE, SCREEN_OVER, SCREEN_WIN,
+  drawTitle, drawLevelUp, drawPause, drawOver, drawWin,
+  formatTime, normalizeSave,
+} from './screens.js';
 
-export const SCREEN_TITLE = 'title';
-export const SCREEN_PLAY = 'play';
-export const SCREEN_LEVELUP = 'levelup';
-export const SCREEN_PAUSE = 'pause';
-export const SCREEN_OVER = 'over';
-export const SCREEN_WIN = 'win';
+// Screen ids and button layouts are owned by screens.js; main.js imports
+// them from here, so re-export them unchanged.
+export {
+  SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_PAUSE,
+  SCREEN_OVER, SCREEN_WIN, screenButtons,
+} from './screens.js';
 
 // Fixed starfield, generated once from a constant seed so it never flickers.
 const STAR_RNG = mulberry32(424242);
 const STARS = [];
-for (let i = 0; i < 90; i += 1) {
+for (let i = 0; i < 180; i += 1) {
   STARS.push({
     x: STAR_RNG() * FIELD.width, y: STAR_RNG() * FIELD.height,
     r: 0.6 + STAR_RNG() * 1.6, tw: STAR_RNG() * 6.28,
   });
 }
+// Small nebula wisps, fixed positions spread over the whole field so the
+// corners are not empty sky. Drawn in the zone accent at a very low alpha
+// (see drawBackground) so the field stays readable.
+const WISPS = [];
+for (let i = 0; i < 12; i += 1) {
+  WISPS.push({
+    x: 60 + STAR_RNG() * (FIELD.width - 120),
+    y: 90 + STAR_RNG() * (FIELD.height - 180),
+    r: 42 + STAR_RNG() * 55,
+    a: 0.035 + STAR_RNG() * 0.03,
+  });
+}
+
+function hexToRgba(hex, alpha) {
+  const n = parseInt(hex.slice(1), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
+}
+// Fallback nebulae for the v1 cyan palette, used only when no zone is set.
 const NEBULAE = [
   { x: 260, y: 180, r: 260, color: 'rgba(57,230,255,0.05)' },
   { x: 1020, y: 620, r: 300, color: 'rgba(255,61,240,0.05)' },
   { x: 900, y: 150, r: 220, color: 'rgba(176,107,255,0.05)' },
 ];
 
-function formatTime(seconds) {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
-}
-
 function bar(ctx, x, y, w, h, frac, fill, back) {
   ctx.fillStyle = back;
   ctx.fillRect(x, y, w, h);
   ctx.fillStyle = fill;
   ctx.fillRect(x, y, w * Math.max(0, Math.min(1, frac)), h);
-}
-
-function drawButton(ctx, rect, label, accent) {
-  ctx.fillStyle = accent ? 'rgba(57,230,255,0.16)' : 'rgba(20,28,56,0.9)';
-  ctx.strokeStyle = accent ? COLORS.player : '#3a4670';
-  ctx.lineWidth = 2;
-  roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 10);
-  ctx.fill();
-  ctx.stroke();
-  ctx.fillStyle = accent ? '#e8fbff' : COLORS.text;
-  ctx.font = 'bold 20px system-ui, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.fillText(label, rect.x + rect.w / 2, rect.y + rect.h / 2 + 1);
-}
-
-function roundRect(ctx, x, y, w, h, r) {
-  ctx.beginPath();
-  ctx.moveTo(x + r, y);
-  ctx.arcTo(x + w, y, x + w, y + h, r);
-  ctx.arcTo(x + w, y + h, x, y + h, r);
-  ctx.arcTo(x, y + h, x, y, r);
-  ctx.arcTo(x, y, x + w, y, r);
-  ctx.closePath();
 }
 
 function glowCircle(ctx, x, y, r, color, alpha) {
@@ -72,45 +67,26 @@ function glowCircle(ctx, x, y, r, color, alpha) {
   ctx.globalAlpha = 1;
 }
 
-// Button layouts, shared by the drawer and main.js click handling.
-export function screenButtons(screen, state) {
-  const cx = FIELD.width / 2;
-  if (screen === SCREEN_TITLE) {
-    return [{ id: 'start', x: cx - 130, y: 560, w: 260, h: 56, label: 'START RUN' }];
-  }
-  if (screen === SCREEN_LEVELUP) {
-    const cards = [];
-    for (let i = 0; i < 3; i += 1) {
-      cards.push({
-        id: `card${i}`, x: cx - 480 + i * 330, y: 290, w: 300, h: 230,
-        label: state.choices[i] ? state.choices[i].name : '',
-      });
-    }
-    return cards;
-  }
-  if (screen === SCREEN_PAUSE) {
-    return [
-      { id: 'resume', x: cx - 130, y: 420, w: 260, h: 52, label: 'RESUME' },
-      { id: 'restart', x: cx - 130, y: 488, w: 260, h: 52, label: 'RESTART' },
-    ];
-  }
-  if (screen === SCREEN_OVER) {
-    return [{ id: 'restart', x: cx - 130, y: 560, w: 260, h: 56, label: 'RETRY  (R)' }];
-  }
-  if (screen === SCREEN_WIN) {
-    return [
-      { id: 'continue', x: cx - 280, y: 560, w: 260, h: 56, label: 'CONTINUE ENDLESS' },
-      { id: 'restart', x: cx + 20, y: 560, w: 260, h: 56, label: 'PLAY AGAIN  (R)' },
-    ];
-  }
-  return [];
-}
-
-function drawBackground(ctx, time) {
-  ctx.fillStyle = COLORS.bg;
+function drawBackground(ctx, time, zone) {
+  // The current zone carries its own palette; fall back to the first zone,
+  // then to the v1 cyan palette when no zone is set at all.
+  const z = zone || (ZONES && ZONES[0]) || null;
+  const bg = z ? z.bg : COLORS.bg;
+  const grid = z ? z.grid : COLORS.grid;
+  const gridBright = z ? z.gridBright : COLORS.gridBright;
+  const nebulae = z ? z.nebulae : NEBULAE;
+  ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
-  for (const neb of NEBULAE) {
+  for (const neb of nebulae) {
+    // Zone nebulae carry their own alpha and are drawn twice so they read
+    // brighter than the faint v1 wash; the fallback keeps the single pass.
     glowCircle(ctx, neb.x, neb.y, neb.r, neb.color, 1);
+    if (z) glowCircle(ctx, neb.x, neb.y, neb.r, neb.color, 1);
+  }
+  // Small wisps in the zone accent, spread across the whole field.
+  const accent = (z && z.accent) || COLORS.player;
+  for (const w of WISPS) {
+    glowCircle(ctx, w.x, w.y, w.r, hexToRgba(accent, w.a), 1);
   }
   for (const star of STARS) {
     const a = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(time * 1.5 + star.tw));
@@ -118,7 +94,7 @@ function drawBackground(ctx, time) {
   }
   // Neon grid, gently breathing.
   const pulse = 0.5 + 0.5 * Math.sin(time * 0.8);
-  ctx.strokeStyle = COLORS.grid;
+  ctx.strokeStyle = grid;
   ctx.lineWidth = 1;
   ctx.beginPath();
   for (let x = 0; x <= FIELD.width; x += 64) {
@@ -130,7 +106,8 @@ function drawBackground(ctx, time) {
     ctx.lineTo(FIELD.width, y);
   }
   ctx.stroke();
-  ctx.strokeStyle = `rgba(57,230,255,${0.05 + 0.05 * pulse})`;
+  ctx.globalAlpha = 0.7 + 0.3 * pulse;
+  ctx.strokeStyle = gridBright;
   ctx.beginPath();
   for (let x = 0; x <= FIELD.width; x += 256) {
     ctx.moveTo(x, 0);
@@ -141,11 +118,12 @@ function drawBackground(ctx, time) {
     ctx.lineTo(FIELD.width, y);
   }
   ctx.stroke();
+  ctx.globalAlpha = 1;
 }
 
 function drawPlayer(ctx, p, time) {
   if (p.iframes > 0 && Math.floor(time * 18) % 2 === 0) return;
-  glowCircle(ctx, p.x, p.y, p.radius + 16, 'rgba(57,230,255,0.18)', 1);
+  glowCircle(ctx, p.x, p.y, p.radius + 16, 'rgba(57,230,255,0.24)', 1);
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(p.angle);
@@ -183,7 +161,7 @@ function drawPlayer(ctx, p, time) {
 
 function drawEnemy(ctx, e, time) {
   const flash = e.flash > 0;
-  glowCircle(ctx, e.x, e.y, e.radius + 10, e.color, 0.16);
+  glowCircle(ctx, e.x, e.y, e.radius + 10, e.color, 0.36);
   ctx.save();
   ctx.translate(e.x, e.y);
   ctx.rotate(e.angle);
@@ -289,6 +267,14 @@ function drawHud(ctx, s) {
   ctx.fillStyle = COLORS.dim;
   ctx.font = '12px system-ui, sans-serif';
   ctx.fillText(`LV ${s.level}`, 298, 54);
+  // Zone name, top-centre, in the zone's accent colour.
+  const zoneName = s.zoneName || (s.zone && s.zone.name) || '';
+  if (zoneName) {
+    ctx.textAlign = 'center';
+    ctx.fillStyle = (s.zone && s.zone.accent) || COLORS.player;
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText(`— ${zoneName} —`, FIELD.width / 2, 30);
+  }
   // Right-hand stats.
   ctx.textAlign = 'right';
   ctx.fillStyle = COLORS.text;
@@ -300,6 +286,12 @@ function drawHud(ctx, s) {
   ctx.fillStyle = COLORS.gold;
   ctx.font = 'bold 16px system-ui, sans-serif';
   ctx.fillText(`SCORE ${s.score}`, FIELD.width - 24, 78);
+  // Combo indicator, under SCORE, once a streak is going.
+  if ((s.combo || 0) >= 3) {
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = 'bold 15px system-ui, sans-serif';
+    ctx.fillText(`COMBO x${s.combo}`, FIELD.width - 24, 102);
+  }
   // Boss bar.
   const boss = s.enemies.find((e) => e.boss);
   if (boss) {
@@ -326,7 +318,7 @@ function drawEntities(ctx, s, time) {
   // Gems.
   for (const g of s.gems) {
     const bob = 1 + 0.12 * Math.sin(g.bob);
-    glowCircle(ctx, g.x, g.y, g.radius * 2.2, g.color, 0.25);
+    glowCircle(ctx, g.x, g.y, g.radius * 2.6, g.color, 0.42);
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.rotate(Math.PI / 4);
@@ -337,16 +329,35 @@ function drawEntities(ctx, s, time) {
   }
   for (const e of s.enemies) drawEnemy(ctx, e, time);
   if (s.player.alive) drawPlayer(ctx, s.player, time);
-  // Bullets.
+  // Bullets: a short trail behind each round so lines of fire read even
+  // when a bullet only lives a few frames before hitting something.
   for (const b of s.bullets) {
-    glowCircle(ctx, b.x, b.y, b.radius + 6, 'rgba(142,246,255,0.35)', 1);
+    const tx = b.x - b.vx * 0.045;
+    const ty = b.y - b.vy * 0.045;
+    ctx.strokeStyle = 'rgba(142,246,255,0.55)';
+    ctx.lineWidth = b.radius * 0.9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    glowCircle(ctx, b.x, b.y, b.radius + 11, 'rgba(142,246,255,0.4)', 1);
     ctx.fillStyle = b.crit ? COLORS.gold : '#d8fbff';
     ctx.beginPath();
-    ctx.arc(b.x, b.y, b.crit ? b.radius + 1.5 : b.radius, 0, Math.PI * 2);
+    ctx.arc(b.x, b.y, b.crit ? b.radius + 2.5 : b.radius + 1, 0, Math.PI * 2);
     ctx.fill();
   }
   for (const b of s.enemyBullets) {
-    glowCircle(ctx, b.x, b.y, b.radius + 7, 'rgba(255,93,143,0.4)', 1);
+    const tx = b.x - b.vx * 0.05;
+    const ty = b.y - b.vy * 0.05;
+    ctx.strokeStyle = 'rgba(255,93,143,0.5)';
+    ctx.lineWidth = b.radius * 0.9;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(tx, ty);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    glowCircle(ctx, b.x, b.y, b.radius + 9, 'rgba(255,93,143,0.45)', 1);
     ctx.fillStyle = COLORS.enemyBullet;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);
@@ -375,162 +386,26 @@ function drawEntities(ctx, s, time) {
   ctx.globalAlpha = 1;
 }
 
-function dimOverlay(ctx, alpha) {
-  ctx.fillStyle = `rgba(3,4,10,${alpha})`;
-  ctx.fillRect(0, 0, FIELD.width, FIELD.height);
-}
-
-function statsLines(s) {
-  return [
-    ['SCORE', String(s.score)],
-    ['WAVE REACHED', String(s.wave)],
-    ['KILLS', String(s.kills)],
-    ['TIME', formatTime(s.time)],
-    ['LEVEL', String(s.level)],
-    ['GEMS COLLECTED', String(s.stats.gemsCollected)],
-  ];
-}
-
-function drawStats(ctx, s, y) {
-  ctx.textAlign = 'center';
-  for (const [label, value] of statsLines(s)) {
-    ctx.fillStyle = COLORS.dim;
-    ctx.font = '13px system-ui, sans-serif';
-    ctx.fillText(label, FIELD.width / 2 - 130, y);
-    ctx.fillStyle = COLORS.text;
-    ctx.font = 'bold 16px system-ui, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(value, FIELD.width / 2 + 40, y);
-    ctx.textAlign = 'center';
-    y += 30;
-  }
-  return y;
-}
-
-function drawTitle(ctx, best) {
-  dimOverlay(ctx, 0.72);
-  const cx = FIELD.width / 2;
-  ctx.textAlign = 'center';
-  glowCircle(ctx, cx, 180, 130, 'rgba(57,230,255,0.12)', 1);
-  ctx.fillStyle = COLORS.player;
-  ctx.font = 'bold 84px system-ui, sans-serif';
-  ctx.fillText('VOIDPULSE', cx, 200);
-  ctx.fillStyle = '#ff3df0';
-  ctx.font = 'bold 20px system-ui, sans-serif';
-  ctx.fillText('— A NEON ARENA SURVIVOR —', cx, 238);
-  ctx.fillStyle = COLORS.text;
-  ctx.font = '17px system-ui, sans-serif';
-  ctx.fillText('Hold the arena. Survive the waves. Break the VOIDHEART on wave 10.', cx, 292);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '15px system-ui, sans-serif';
-  ctx.fillText('WASD / Arrows — move      Mouse — aim (auto-fire is always on)', cx, 330);
-  ctx.fillText('Collect XP gems, pick upgrades on level-up, dodge the pink shots.', cx, 356);
-  ctx.fillText('P / Esc — pause      R — restart      1 / 2 / 3 — pick a card', cx, 382);
-  ctx.fillStyle = COLORS.gold;
-  ctx.font = 'bold 16px system-ui, sans-serif';
-  ctx.fillText(`BEST SCORE  ${best}`, cx, 428);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '13px system-ui, sans-serif';
-  ctx.fillText('Elites glow gold every 3rd wave. Splitters burst into minis. Good hunting.', cx, 470);
-  for (const b of screenButtons(SCREEN_TITLE)) drawButton(ctx, b, b.label, true);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('An original game. No borrowed names, art or music.', cx, 660);
-}
-
-function drawLevelUp(ctx, s) {
-  dimOverlay(ctx, 0.66);
-  const cx = FIELD.width / 2;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.gold;
-  ctx.font = 'bold 40px system-ui, sans-serif';
-  ctx.fillText(`LEVEL ${s.level} — CHOOSE AN UPGRADE`, cx, 190);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '15px system-ui, sans-serif';
-  ctx.fillText('Click a card, or press 1 / 2 / 3.', cx, 224);
-  const buttons = screenButtons(SCREEN_LEVELUP, s);
-  buttons.forEach((rect, i) => {
-    const u = s.choices[i];
-    if (!u) return;
-    ctx.fillStyle = 'rgba(16,22,48,0.95)';
-    ctx.strokeStyle = COLORS.player;
-    ctx.lineWidth = 2;
-    roundRect(ctx, rect.x, rect.y, rect.w, rect.h, 12);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = COLORS.player;
-    ctx.font = 'bold 30px system-ui, sans-serif';
-    ctx.fillText(u.icon, rect.x + rect.w / 2, rect.y + 62);
-    ctx.fillStyle = COLORS.text;
-    ctx.font = 'bold 21px system-ui, sans-serif';
-    ctx.fillText(u.name, rect.x + rect.w / 2, rect.y + 108);
-    ctx.fillStyle = COLORS.dim;
-    ctx.font = '15px system-ui, sans-serif';
-    ctx.fillText(u.desc, rect.x + rect.w / 2, rect.y + 142);
-    ctx.fillStyle = COLORS.gold;
-    ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillText(`[ ${i + 1} ]`, rect.x + rect.w / 2, rect.y + 188);
-  });
-}
-
-function drawPause(ctx) {
-  dimOverlay(ctx, 0.7);
-  const cx = FIELD.width / 2;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.text;
-  ctx.font = 'bold 48px system-ui, sans-serif';
-  ctx.fillText('PAUSED', cx, 300);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '16px system-ui, sans-serif';
-  ctx.fillText('WASD move · Mouse aim · Auto-fire on · P / Esc resume', cx, 340);
-  for (const b of screenButtons(SCREEN_PAUSE)) drawButton(ctx, b, b.label, b.id === 'resume');
-}
-
-function drawOver(ctx, s) {
-  dimOverlay(ctx, 0.78);
-  const cx = FIELD.width / 2;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.hp;
-  ctx.font = 'bold 56px system-ui, sans-serif';
-  ctx.fillText('SIGNAL LOST', cx, 190);
-  ctx.fillStyle = COLORS.dim;
-  ctx.font = '16px system-ui, sans-serif';
-  ctx.fillText('The void takes another pulse.', cx, 226);
-  drawStats(ctx, s, 290);
-  for (const b of screenButtons(SCREEN_OVER, s)) drawButton(ctx, b, b.label, true);
-}
-
-function drawWin(ctx, s) {
-  dimOverlay(ctx, 0.72);
-  const cx = FIELD.width / 2;
-  ctx.textAlign = 'center';
-  ctx.fillStyle = COLORS.gold;
-  ctx.font = 'bold 52px system-ui, sans-serif';
-  ctx.fillText('VOIDHEART DESTROYED', cx, 180);
-  ctx.fillStyle = COLORS.text;
-  ctx.font = '17px system-ui, sans-serif';
-  ctx.fillText('Wave 10 is yours. The arena is quiet — for now.', cx, 220);
-  drawStats(ctx, s, 280);
-  for (const b of screenButtons(SCREEN_WIN, s)) drawButton(ctx, b, b.label, b.id === 'continue');
-}
-
 // Main entry: paint the world, then the overlay for the current screen.
-export function drawGame(ctx, world, screen, best) {
+// `save` is the persistent save record { best, bestByZone, bestTime,
+// runs, kills, cores }; a bare best-score number is also accepted.
+export function drawGame(ctx, world, screen, save) {
   const s = world.state;
+  const sv = normalizeSave(save);
   ctx.save();
   if (s.shake > 0) {
     const mag = Math.min(10, s.shake);
     ctx.translate(Math.sin(s.time * 127.1) * mag, Math.cos(s.time * 311.7) * mag);
   }
-  drawBackground(ctx, s.time);
+  drawBackground(ctx, s.time, s.zone);
   drawEntities(ctx, s, s.time);
   if (screen === SCREEN_PLAY || screen === SCREEN_LEVELUP || screen === SCREEN_PAUSE) {
     drawHud(ctx, s);
   }
   ctx.restore();
-  if (screen === SCREEN_TITLE) drawTitle(ctx, best);
+  if (screen === SCREEN_TITLE) drawTitle(ctx, sv, s);
   else if (screen === SCREEN_LEVELUP) drawLevelUp(ctx, s);
   else if (screen === SCREEN_PAUSE) drawPause(ctx);
-  else if (screen === SCREEN_OVER) drawOver(ctx, s);
-  else if (screen === SCREEN_WIN) drawWin(ctx, s);
+  else if (screen === SCREEN_OVER) drawOver(ctx, s, sv);
+  else if (screen === SCREEN_WIN) drawWin(ctx, s, sv);
 }

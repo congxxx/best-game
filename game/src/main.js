@@ -10,6 +10,8 @@ import {
   SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_PAUSE, SCREEN_OVER, SCREEN_WIN,
 } from './render.js';
 import { stageShot } from './shots.js';
+import { loadSave, recordRun, persistSave } from './save.js';
+import { ZONES, isZoneUnlocked, unlockRequirement } from './zones.js';
 
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
@@ -18,29 +20,10 @@ const audio = new AudioEngine();
 const world = createWorld(1337);
 
 let screen = SCREEN_TITLE;
-let best = loadBest();
+let save = loadSave();
 let accumulator = 0;
 let lastTime = 0;
 let shotMode = false;
-
-function loadBest() {
-  try {
-    const raw = window.localStorage.getItem('voidpulse_best');
-    const n = raw === null ? 0 : parseInt(raw, 10);
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  } catch (err) {
-    return 0;
-  }
-}
-
-function saveBest() {
-  try {
-    if (world.state.score > best) {
-      best = world.state.score;
-      window.localStorage.setItem('voidpulse_best', String(best));
-    }
-  } catch (err) { /* storage unavailable */ }
-}
 
 // Fit the 1280x800 field into the window, letterboxed, DPR capped at 2.
 function resize() {
@@ -69,12 +52,28 @@ function drainSfx() {
   sfx.length = 0;
 }
 
-function startRun() {
+function startRun(zoneId) {
   audio.ensure();
   audio.startMusic();
-  world.startRun();
+  world.startRun(zoneId);
   screen = SCREEN_PLAY;
   accumulator = 0;
+}
+
+// Start a run in the named zone if it is unlocked; a locked zone shows a
+// brief red notice under the title map instead of starting a run.
+function tryStartZone(zoneId) {
+  const zone = ZONES.find((z) => z.id === zoneId) || ZONES[0];
+  if (isZoneUnlocked(zoneId, save)) {
+    save.lastZone = zoneId;
+    persistSave(save);
+    startRun(zoneId);
+  } else {
+    world.state.titleNotice = {
+      text: `${zone.name} is locked — ${unlockRequirement(zoneId)}`,
+      until: Date.now() + 1500,
+    };
+  }
 }
 
 function handleKey() {
@@ -88,10 +87,16 @@ function handleKey() {
     }
   }
   if (input.wasPressed('r')) {
-    if (screen === SCREEN_OVER || screen === SCREEN_WIN || screen === SCREEN_PAUSE) startRun();
+    if (screen === SCREEN_OVER || screen === SCREEN_WIN || screen === SCREEN_PAUSE) startRun(save.lastZone);
   }
-  if (input.wasPressed('enter') || input.wasPressed(' ')) {
-    if (screen === SCREEN_TITLE) startRun();
+  if (screen === SCREEN_TITLE) {
+    // 1 / 2 / 3 start in that zone (locked -> notice); Enter / Space
+    // starts in the last-picked zone.
+    const zoneIds = ['drift', 'ember', 'violet'];
+    for (let i = 0; i < 3; i += 1) {
+      if (input.wasPressed(String(i + 1))) tryStartZone(zoneIds[i]);
+    }
+    if (input.wasPressed('enter') || input.wasPressed(' ')) startRun(save.lastZone);
   }
   if (screen === SCREEN_LEVELUP) {
     if (input.wasPressed('1')) world.applyLevelUpChoice(0);
@@ -109,11 +114,14 @@ function handleClick(clientX, clientY) {
   const rect = canvas.getBoundingClientRect();
   const x = (clientX - rect.left - input.offsetX) / input.scale;
   const y = (clientY - rect.top - input.offsetY) / input.scale;
-  for (const b of screenButtons(screen, world.state)) {
+  for (const b of screenButtons(screen, world.state, save)) {
     if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
       audio.click();
-      if (b.id === 'start' || b.id === 'restart') startRun();
-      else if (b.id === 'resume') {
+      if (b.id === 'start') startRun(save.lastZone);
+      else if (b.id === 'restart') startRun(save.lastZone);
+      else if (b.id.startsWith('zone-')) {
+        tryStartZone(b.id.slice(5));
+      } else if (b.id === 'resume') {
         screen = SCREEN_PLAY;
         world.state.phase = 'play';
       } else if (b.id === 'continue') {
@@ -153,10 +161,10 @@ function frame(timestamp) {
     drainSfx();
     if (world.state.phase === 'over') {
       screen = SCREEN_OVER;
-      saveBest();
+      save = recordRun(save, world.state, 'over').save;
     } else if (world.state.phase === 'win') {
       screen = SCREEN_WIN;
-      saveBest();
+      save = recordRun(save, world.state, 'win').save;
     } else if (world.state.phase === 'levelup') {
       screen = SCREEN_LEVELUP;
     }
@@ -164,7 +172,7 @@ function frame(timestamp) {
     screen = SCREEN_PLAY;
   }
 
-  drawGame(ctx, world, screen, best);
+  drawGame(ctx, world, screen, save);
   input.endFrame();
   requestAnimationFrame(frame);
 }
@@ -181,8 +189,9 @@ function initShotMode() {
   world.rng = shotWorld.rng;
   world.seed = shotWorld.seed;
   screen = result.screen;
-  best = result.best;
-  drawGame(ctx, world, screen, best);
+  // Shot mode shows the loaded save (fresh screenshot profiles have an
+  // empty localStorage, so bests show 0/—, which is fine).
+  drawGame(ctx, world, screen, save);
   return true;
 }
 

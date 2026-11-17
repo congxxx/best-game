@@ -2,8 +2,8 @@
 // so the rest of the code reads like rules instead of magic numbers.
 export const FIELD = { width: 1280, height: 800 };
 export const STEP = 1 / 60;
-export const MAX_PARTICLES = 400;
-export const MAX_TEXTS = 48;
+export const MAX_PARTICLES = 800;
+export const MAX_TEXTS = 64;
 
 export const COLORS = {
   bg: '#05060f',
@@ -33,8 +33,8 @@ export const PLAYER = {
   fireInterval: 0.34,
   bulletSpeed: 640,
   bulletDamage: 12,
-  bulletRadius: 5,
-  magnetRadius: 90,
+  bulletRadius: 10,
+  magnetRadius: 75,
   regen: 0,
   critChance: 0.05,
   critMult: 2,
@@ -93,7 +93,7 @@ export const BOSS = {
 };
 
 export function waveEnemyCount(wave) {
-  return 7 + wave * 3;
+  return 14 + wave * 6;
 }
 
 export function waveHpMult(wave) {

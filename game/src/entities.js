@@ -60,7 +60,7 @@ export function createBoss(x, y, wave) {
 export function createBullet(x, y, angle, speed, damage, pierce, crit, friendly) {
   return {
     x, y, vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-    radius: friendly ? 5 : 6, damage, pierce, crit,
+    radius: friendly ? PLAYER.bulletRadius : 9, damage, pierce, crit,
     friendly, life: friendly ? 1.6 : 5, hitSet: friendly ? new Set() : null,
   };
 }
@@ -69,7 +69,7 @@ export function createGem(x, y, value, rng) {
   const tier = value >= 20 ? GEM_TIERS[2] : value >= 5 ? GEM_TIERS[1] : GEM_TIERS[0];
   return {
     x, y, value: tier.value, radius: tier.radius, color: tier.color,
-    vx: rng.range(-40, 40), vy: rng.range(-40, 40),
+    vx: rng.range(-90, 90), vy: rng.range(-90, 90),
     magnet: false, bob: rng.range(0, Math.PI * 2),
   };
 }
@@ -89,5 +89,5 @@ export function createParticle(x, y, color, count, speed, life, rng) {
 }
 
 export function createFloatingText(x, y, text, color) {
-  return { x, y, text, color, life: 0.9, maxLife: 0.9 };
+  return { x, y, text, color, life: 1.1, maxLife: 1.1 };
 }

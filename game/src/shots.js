@@ -6,7 +6,7 @@ import { FIELD, STEP } from './config.js';
 import { SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_OVER } from './render.js';
 
 const START_SECONDS = 5;
-const PLAY_SECONDS = 45;
+const PLAY_SECONDS = 55;
 const LEVELUP_LIMIT_SECONDS = 90;
 const END_LIMIT_SECONDS = 120;
 
@@ -32,7 +32,7 @@ function autopilot(state) {
     moveX += (p.x - nearestEnemy.x) / nearestD;
     moveY += (p.y - nearestEnemy.y) / nearestD;
   }
-  if (nearestGem && nearestGemD < 420) {
+  if (nearestGem && nearestGemD < 300) {
     moveX += (nearestGem.x - p.x) / nearestGemD;
     moveY += (nearestGem.y - p.y) / nearestGemD;
   }

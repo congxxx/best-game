@@ -9,6 +9,7 @@ import {
   xpForLevel, waveClearBonus,
 } from './config.js';
 import { makeRng } from './random.js';
+import { zoneForWave, zoneIndex } from './zones.js';
 import {
   createPlayer, createEnemy, createBoss, createBullet, createGem,
   createParticle, createFloatingText,
@@ -44,6 +45,19 @@ export class World {
       particles: [],
       texts: [],
       wave: 0,
+      zone: zoneForWave(1),
+      zoneName: zoneForWave(1).name,
+      // Offset into the zone cycle for this run: 0 = start in CYAN DRIFT,
+      // 1 = start in EMBER REEF, 2 = start in VIOLET DEEP. Wave numbering
+      // stays 1..10; only the zone lookup is shifted.
+      zoneOffset: 0,
+      zonesVisited: [],
+      // Brief notice shown under the title map (e.g. locked-zone message).
+      titleNotice: null,
+      combo: 0,
+      bestCombo: 0,
+      lastKillTime: 0,
+      runResult: null,
       waveState: 'idle', // idle | spawning | fighting | clear
       spawnQueue: [],
       spawnTimer: 0,
@@ -63,12 +77,17 @@ export class World {
       upgradesTaken: [],
       shake: 0,
       sfx: [],
-      stats: { shotsFired: 0, gemsCollected: 0 },
+      stats: { shotsFired: 0, gemsCollected: 0, coresCollected: 0 },
     };
   }
 
-  startRun() {
+  // Start a run in the given zone ('drift' | 'ember' | 'violet'); no arg
+  // starts in CYAN DRIFT. Wave numbering stays 1..10 — only the zone
+  // cycle is offset, so a run starting in EMBER REEF plays
+  // ember -> violet -> drift -> ember ...
+  startRun(zoneId) {
     this.reset(this.seed);
+    this.state.zoneOffset = zoneIndex(zoneId);
     this.state.phase = 'play';
     this.startWave(1);
   }
@@ -77,6 +96,9 @@ export class World {
   startWave(wave) {
     const s = this.state;
     s.wave = wave;
+    s.zone = zoneForWave(wave, s.zoneOffset);
+    s.zoneName = s.zone.name;
+    if (!s.zonesVisited.includes(s.zone.id)) s.zonesVisited.push(s.zone.id);
     s.elitesSpawned = 0;
     s.bossActive = false;
     if (wave % 10 === 0) {
@@ -86,7 +108,7 @@ export class World {
       s.spawnQueue = ['chaser', 'chaser', 'darter', 'darter', 'shooter'];
       s.waveState = 'spawning';
       s.spawnTimer = 1.2;
-      s.bannerText = 'VOIDHEART AWAKENS';
+      s.bannerText = `VOIDHEART AWAKENS — ${s.zoneName}`;
       s.bannerTimer = 2.0;
       s.sfx.push('bossRoar');
       return;
@@ -104,7 +126,7 @@ export class World {
     s.spawnQueue = queue;
     s.waveState = 'spawning';
     s.spawnTimer = 0.6;
-    s.bannerText = `WAVE ${wave}`;
+    s.bannerText = `WAVE ${wave} — ${s.zoneName}`;
     s.bannerTimer = 1.6;
   }
 
@@ -159,6 +181,13 @@ export class World {
     }
     s.stats.shotsFired += n;
     s.sfx.push('shoot');
+    // Muzzle flash: a couple of short-lived sparks at the nose so the
+    // firing reads in a still frame even when the round itself is gone.
+    this.burst(
+      p.x + Math.cos(base) * (p.radius + 10),
+      p.y + Math.sin(base) * (p.radius + 10),
+      '#8ef6ff', 2, 130, 0.22,
+    );
   }
 
   damageEnemy(enemy, dmg, crit) {
@@ -166,7 +195,7 @@ export class World {
     enemy.hp -= dmg;
     enemy.flash = 0.09;
     this.addText(enemy.x, enemy.y - enemy.radius - 6, String(dmg), crit ? '#ffd23f' : '#dfe8ff');
-    this.burst(enemy.x, enemy.y, enemy.color, 3, 140, 0.3);
+    this.burst(enemy.x, enemy.y, enemy.color, 4, 140, 0.3);
     if (enemy.hp <= 0) this.killEnemy(enemy);
     else s.sfx.push('enemyHit');
   }
@@ -175,15 +204,31 @@ export class World {
     const s = this.state;
     enemy.dead = true;
     s.kills += 1;
-    s.score += enemy.score;
-    this.burst(enemy.x, enemy.y, enemy.color, enemy.boss ? 40 : 14, 260, 0.6);
+    // Kill streaks: a kill within 2.5s of the last one extends the combo.
+    if (s.time - s.lastKillTime < 2.5) s.combo += 1;
+    else s.combo = 1;
+    s.lastKillTime = s.time;
+    s.bestCombo = Math.max(s.bestCombo, s.combo);
+    s.score += enemy.score + s.combo;
+    this.burst(enemy.x, enemy.y, enemy.color, enemy.boss ? 60 : 30, 260, 0.8);
     s.sfx.push('enemyDeath');
     // Gems: one gem per tier value, elites and the boss drop bonus gems.
+    // Tougher (xp >= 5) enemies scatter a second small gem, so the field
+    // keeps more pickups lying around between kills.
     const gemValue = enemy.xp >= 20 ? 20 : enemy.xp >= 5 ? 5 : 1;
     s.gems.push(createGem(enemy.x, enemy.y, gemValue, this.rng));
+    if (enemy.xp >= 5 && !enemy.elite && !enemy.boss) {
+      s.gems.push(createGem(enemy.x + 18, enemy.y + 10, 1, this.rng));
+    }
     if (enemy.elite && !enemy.boss) {
       s.gems.push(createGem(enemy.x + 14, enemy.y, 20, this.rng));
       this.addText(enemy.x, enemy.y - 30, 'ELITE +20', '#ffd23f');
+    }
+    // Elites and the boss salvage a core: the run's collectible.
+    if (enemy.elite || enemy.boss) {
+      s.stats.coresCollected += 1;
+      this.addText(enemy.x, enemy.y - 52, 'CORE +1', '#ffd23f');
+      this.burst(enemy.x, enemy.y, '#ffd23f', 10, 200, 0.5);
     }
     if (enemy.kind === 'splitter') {
       for (let i = 0; i < 2; i += 1) {
@@ -325,12 +370,16 @@ export class World {
       p.fireTimer = p.fireInterval;
     }
 
-    // Wave spawning.
+    // Wave spawning: faster trickle than v3, and from wave 3 two enemies
+    // arrive per tick so the field holds visibly more of them at once.
     if (s.waveState === 'spawning') {
       s.spawnTimer -= dt;
-      const interval = Math.max(0.35, 1.05 - s.wave * 0.05);
+      const interval = Math.max(0.3, 0.8 - s.wave * 0.05);
+      const batch = s.wave >= 3 ? 2 : 1;
       if (s.spawnTimer <= 0 && s.spawnQueue.length > 0) {
-        this.spawnEnemy(s.spawnQueue.shift());
+        for (let i = 0; i < batch && s.spawnQueue.length > 0; i += 1) {
+          this.spawnEnemy(s.spawnQueue.shift());
+        }
         s.spawnTimer = interval;
       }
       if (s.spawnQueue.length === 0) s.waveState = 'fighting';
@@ -446,7 +495,7 @@ export class World {
       // Contact damage, rate-limited per enemy.
       const rr = e.radius + p.radius;
       if (dist2(e.x, e.y, p.x, p.y) < rr * rr && e.touchTimer <= 0) {
-        e.touchTimer = 0.7;
+        e.touchTimer = 0.85;
         this.hurtPlayer(e.damage, e.x, e.y);
         if (s.phase !== 'play') return;
       }
@@ -500,21 +549,23 @@ export class World {
       const d = Math.hypot(dx, dy) || 1;
       if (d < p.magnetRadius) {
         g.magnet = true;
-        g.vx = (dx / d) * 540;
-        g.vy = (dy / d) * 540;
+        g.vx = (dx / d) * 420;
+        g.vy = (dy / d) * 420;
       } else if (g.magnet) {
         g.vx *= 0.92;
         g.vy *= 0.92;
       } else {
-        g.vx *= 0.96;
-        g.vy *= 0.96;
+        // Gems slide away from the kill point before settling, so they
+        // scatter across the field instead of piling up on the player.
+        g.vx *= 0.985;
+        g.vy *= 0.985;
       }
       g.x += g.vx * dt;
       g.y += g.vy * dt;
       if (d < p.radius + 12) {
         g.taken = true;
         this.addText(g.x, g.y - 10, `+${g.value} XP`, g.color);
-        this.burst(g.x, g.y, g.color, 4, 120, 0.3);
+        this.burst(g.x, g.y, g.color, 5, 120, 0.3);
         s.sfx.push('gemPickup');
         this.gainXp(g.value);
         if (s.phase !== 'play') return;
