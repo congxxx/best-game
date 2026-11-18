@@ -1,4 +1,5 @@
 import { PLAYER } from './config.js';
+import { PULSE_COST } from './counterpulse.js';
 import { createEnemy, createBullet, createGem } from './entities.js';
 
 export function fireBullets(world) {
@@ -43,6 +44,7 @@ export function killEnemy(world, enemy) {
   const s = world.state;
   enemy.dead = true;
   s.kills += 1;
+  s.pulseCharge = Math.min(PULSE_COST, s.pulseCharge + 1);
   // Kill streaks: a kill within 2.5s of the last one extends the combo.
   if (s.time - s.lastKillTime < 2.5) s.combo += 1;
   else s.combo = 1;
@@ -80,6 +82,7 @@ export function killEnemy(world, enemy) {
   if (enemy.boss) {
     s.bossActive = false;
     s.bossDefeated = true;
+    if (s.relay?.rank === 2 && s.relay.node === 1) s.relay.bossAfterLink = true;
     s.shake = 22;
     for (let i = 0; i < 3; i += 1) {
       s.gems.push(createGem(enemy.x + world.rng.range(-50, 50), enemy.y + world.rng.range(-50, 50), 20, world.rng));

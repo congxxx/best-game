@@ -187,7 +187,7 @@ export function winPilot(state) {
  */
 export function stageShot(name, world) {
   world.startRun();
-  if (name !== 'play' && name !== 'levelup' && name !== 'end' && name !== 'win') {
+  if (!['play', 'levelup', 'end', 'win', 'boss'].includes(name)) {
     for (let i = 0; i < START_SECONDS / STEP; i += 1) {
       world.step(STEP, autopilot(world.state));
       settleLevelUps(world);
@@ -220,7 +220,7 @@ export function stageShot(name, world) {
     }
     return { screen: SCREEN_LEVELUP, best: world.state.score };
   }
-  if (name === 'win') {
+  if (name === 'win' || name === 'boss') {
     // Real wave-10 win attempt with the strong pilot. Seed 9 wins in
     // ~235s of sim time; if this seed dies instead, the frame is still a
     // genuine late run (wave 8-9, real score and cores) — never faked.
@@ -228,6 +228,12 @@ export function stageShot(name, world) {
       if (world.state.phase !== 'play') break;
       world.step(STEP, winPilot(world.state));
       settleLevelUps(world);
+      if (name === 'boss' && world.state.phase === 'play') {
+        const boss = world.state.enemies.find(enemy => enemy.boss && !enemy.dead);
+        if (boss && boss.hp < boss.maxHp / 2 && boss.shootTimer < 0.75 && boss.y > 200 && world.state.enemyBullets.length >= 5) {
+          return { screen: SCREEN_PLAY, best: world.state.score };
+        }
+      }
     }
     if (world.state.phase === 'win') {
       return { screen: SCREEN_WIN, best: world.state.score };

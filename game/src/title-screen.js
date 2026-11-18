@@ -88,6 +88,8 @@ function drawZoneCard(ctx, b, sv) {
   }
 }
 
+import { ORDERS } from './relay.js';
+
 export function drawTitle(ctx, save, state) {
   const sv = normalizeSave(save);
   const st = state || {};
@@ -148,6 +150,20 @@ export function drawTitle(ctx, save, state) {
   for (const b of buttons) {
     if (b.id === 'start') drawButton(ctx, b, b.label, true);
   }
+  const rank = save?.relayRank || 0;
+  const order = ORDERS[rank];
+  ctx.fillStyle = COLORS.gold;
+  ctx.textAlign = 'left';
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText('RELAY CAMPAIGN  /  ' + rank + ' OF 3', 160, 585);
+  ctx.fillStyle = COLORS.text;
+  ctx.font = '14px system-ui';
+  ctx.fillText(order ? order.name + '   /   +' + order.reward + ' CORE' : 'ALL SIGNALS RESTORED', 160, 610);
+  ctx.font = 'bold 16px monospace';
+  ctx.fillText('FIELD ORDER', 820, 585);
+  ctx.font = '14px system-ui';
+  ctx.fillText(order?.task || 'Return to endless patrol', 820, 610);
+  ctx.textAlign = 'center';
   ctx.fillStyle = COLORS.dim;
   ctx.font = '12px system-ui, sans-serif';
   ctx.font = 'bold 15px monospace';
@@ -158,7 +174,7 @@ export function drawTitle(ctx, save, state) {
     ctx.fillStyle = rig.selected ? COLORS.player : COLORS.dim;
     ctx.fillRect(rig.x, rig.y, rig.w, 2);
     ctx.font = 'bold 15px monospace';
-    ctx.fillText(rig.name + (rig.locked ? '  /  ' + rig.cores + ' CORES' : rig.selected ? '  /  FITTED' : '  /  EQUIP'), rig.x + rig.w / 2, rig.y + 25);
+    ctx.fillText(rig.name + (rig.locked ? '  /  ' + rig.cores + (rig.cores === 1 ? ' CORE' : ' CORES') : rig.selected ? '  /  FITTED' : '  /  EQUIP'), rig.x + rig.w / 2, rig.y + 25);
     ctx.font = '14px system-ui';
     ctx.fillText(rig.detail, rig.x + rig.w / 2, rig.y + 48);
   }

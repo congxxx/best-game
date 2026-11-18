@@ -91,12 +91,14 @@ export function updateEnemies(world, dt) {
         if (dist2(ox, oy, e.x, e.y) < (14 + e.radius) * (14 + e.radius)) {
           e.orbTimer = 0.4;
           damageEnemy(world, e, Math.round(p.bulletDamage * 0.8), false);
+          if (s.phase !== 'play') return;
           break;
         }
       }
     }
 
     // Contact damage, rate-limited per enemy.
+    if (e.dead) continue;
     const rr = e.radius + p.radius;
     if (dist2(e.x, e.y, p.x, p.y) < rr * rr && e.touchTimer <= 0) {
       e.touchTimer = 0.85;
@@ -110,6 +112,7 @@ export function updateBullets(world, dt) {
   const s = world.state;
   const p = s.player;
   for (const b of s.bullets) {
+    if (s.phase !== 'play') break;
     b.x += b.vx * dt;
     b.y += b.vy * dt;
     b.life -= dt;
@@ -122,12 +125,14 @@ export function updateBullets(world, dt) {
         damageEnemy(world, e, b.damage, b.crit);
         if (b.pierce > 0) b.pierce -= 1;
         else { b.life = 0; break; }
+        if (s.phase !== 'play') break;
       }
     }
   }
   s.bullets = s.bullets.filter((b) => b.life > 0
     && b.x > -20 && b.x < FIELD.width + 20 && b.y > -20 && b.y < FIELD.height + 20);
 
+  if (s.phase !== 'play') return;
   for (const b of s.enemyBullets) {
     b.x += b.vx * dt;
     b.y += b.vy * dt;

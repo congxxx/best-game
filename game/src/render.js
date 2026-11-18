@@ -5,6 +5,8 @@
 import { FIELD, COLORS, BOSS } from './config.js';
 import { mulberry32 } from './random.js';
 import { drawHorizon } from './horizon.js';
+import { pulseHint } from './counterpulse.js';
+import { paintRelay, relayStatus, ORDERS } from './relay.js';
 import { drawEnemyHull } from './enemy-hulls.js';
 import { ZONES } from './zones.js';
 import {
@@ -238,8 +240,26 @@ function drawEnemy(ctx, e, time) {
     const pulse = 1 + 0.08 * Math.sin(time * 4 + e.pulse);
     ctx.rotate(-e.angle);
     ctx.beginPath();
-    ctx.arc(0, 0, e.radius * pulse, 0, Math.PI * 2);
+    ctx.fillStyle = '#230f34';
+    ctx.arc(0, 0, e.radius, 0, Math.PI * 2);
     ctx.fill();
+    for (let plate = 0; plate < 6; plate++) {
+      ctx.save();
+      ctx.rotate(plate * Math.PI / 3 + time * 0.14);
+      ctx.beginPath();
+      ctx.moveTo(24, -10);
+      ctx.lineTo(51, -32);
+      ctx.lineTo(73, -11);
+      ctx.lineTo(61, 9);
+      ctx.lineTo(39, 15);
+      ctx.closePath();
+      ctx.fillStyle = flash ? '#ffd5eb' : '#87345e';
+      ctx.fill();
+      ctx.strokeStyle = '#ff977e';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+      ctx.restore();
+    }
     ctx.strokeStyle = '#ff8ef5';
     ctx.lineWidth = 3;
     ctx.beginPath();
@@ -314,6 +334,14 @@ function drawHud(ctx, s) {
     ctx.fillText(s.zone.fieldLabel, FIELD.width / 2, 49);
   }
   // Right-hand stats.
+  if (s.relay) {
+    ctx.textAlign = 'left';
+    ctx.fillStyle = COLORS.gold;
+    ctx.font = 'bold 14px monospace';
+    ctx.fillText('OP ' + (s.relay.rank + 1) + '  /  ' + ORDERS[s.relay.rank].name, 24, FIELD.height - 45);
+    ctx.fillStyle = COLORS.text;
+    ctx.fillText(relayStatus(s), 24, FIELD.height - 24);
+  }
   ctx.textAlign = 'right';
   ctx.fillStyle = COLORS.text;
   ctx.font = 'bold 15px system-ui, sans-serif';
@@ -338,9 +366,19 @@ function drawHud(ctx, s) {
     ctx.textAlign = 'center';
     ctx.fillStyle = COLORS.boss;
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillText(BOSS.name, FIELD.width / 2, 108);
+    const phase = boss.hp < boss.maxHp / 2 ? 'II  /  OVERDRIVE' : 'I  /  CONTAINMENT';
+    ctx.fillText(BOSS.name + '   ·   PHASE ' + phase, FIELD.width / 2, 108);
     bar(ctx, x, 116, w, 12, boss.hp / boss.maxHp, COLORS.boss, '#2a0a26');
+    if (boss.shootTimer <= 0.8) {
+      ctx.fillStyle = COLORS.gold;
+      ctx.font = 'bold 14px monospace';
+      ctx.fillText('RING BURST IN ' + Math.max(0, boss.shootTimer).toFixed(1) + 's', FIELD.width / 2, 149);
+    }
   }
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 14px monospace';
+  ctx.fillStyle = COLORS.player;
+  ctx.fillText(pulseHint(s), FIELD.width - 24, FIELD.height - 24);
   // Wave banner.
   if (s.bannerTimer > 0 && s.bannerText) {
     ctx.globalAlpha = Math.min(1, s.bannerTimer);
@@ -437,6 +475,7 @@ export function drawGame(ctx, world, screen, save) {
     ctx.translate(Math.sin(s.time * 127.1) * mag, Math.cos(s.time * 311.7) * mag);
   }
   drawBackground(ctx, s.time, s.zone);
+  if (screen === SCREEN_PLAY) paintRelay(ctx, s);
   drawEntities(ctx, s, s.time);
   if (screen === SCREEN_PLAY || screen === SCREEN_LEVELUP || screen === SCREEN_PAUSE) {
     drawHud(ctx, s);

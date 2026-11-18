@@ -41,6 +41,11 @@ export class Input {
     canvas.addEventListener('mousemove', this._onMouseMove);
     canvas.addEventListener('mousedown', this._onMouseDown);
     window.addEventListener('mouseup', this._onMouseUp);
+    window.addEventListener('blur', () => {
+      this.keys.clear();
+      this.pressed.clear();
+      this.mouseDown = false;
+    });
   }
 
   setView(scale, offsetX, offsetY) {

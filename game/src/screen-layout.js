@@ -28,6 +28,7 @@ export function normalizeSave(save) {
     maxWave: save.maxWave || 0,
     lastZone: save.lastZone || 'drift',
     rig: save.rig || 'survey',
+    relayRank: save.relayRank || 0,
   };
 }
 

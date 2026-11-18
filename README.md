@@ -27,4 +27,8 @@ Then open http://localhost:8000 in desktop Chrome. No build step, no network: va
 - Each wave's sector changes your ship: Cyan Drift extends pickup range by 30%, Ember Reef boosts firing rate by 15%, and Violet Deep boosts movement speed by 12%. These effects switch with the sector and stack with your upgrade choices.
 - After defeat or victory, press Z for the zone map and choose an unlocked starting sector.
 
-To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=start&seed=1337`, `?shot=play&seed=1337`, `?shot=levelup&seed=1337` and `?shot=win&seed=9`, in that order.
+The optional relay campaign carries one field order into each run. Enter the gold uplink circle to charge it; leaving pauses progress. Completing a link clears hostile shots and restores up to 15 hull. First Light needs one link, Crosswire connects two in sequence, and Heartbreak requires the link and a boss kill. Finish the run to bank each order once for 1, 2, or 3 extra hangar cores. A failed order can be retried next run.
+
+Every 12 kills charge Counterpulse. When the HUD shows **E / REFLECT**, press E to send nearby hostile rounds back along their incoming paths. An empty activation costs nothing. During VOIDHEART's second phase the ring bursts become denser and more frequent; the HUD counts down the final 0.8 seconds before each volley.
+
+To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=start&seed=1337`, `?shot=boss&seed=27`, `?shot=levelup&seed=1337` and `?shot=win&seed=18`, in that order.

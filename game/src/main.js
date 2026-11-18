@@ -4,6 +4,7 @@
 import { FIELD, STEP } from './config.js';
 import { createWorld } from './world.js';
 import { Input } from './input.js';
+import { counterpulse } from './counterpulse.js';
 import { AudioEngine } from './audio.js';
 import {
   drawGame, screenButtons,
@@ -55,7 +56,7 @@ function drainSfx() {
 function startRun(zoneId) {
   audio.ensure();
   audio.startMusic();
-  world.startRun(zoneId, save.rig);
+  world.startRun(zoneId, save.rig, save.relayRank);
   screen = SCREEN_PLAY;
   accumulator = 0;
 }
@@ -77,6 +78,7 @@ function tryStartZone(zoneId) {
 }
 
 function handleKey() {
+  if (screen === SCREEN_PLAY && input.wasPressed('e')) counterpulse(world);
   if ((screen === SCREEN_OVER || screen === SCREEN_WIN) && input.wasPressed('z')) {
     showMap();
     return;
@@ -223,6 +225,13 @@ function initShotMode() {
 }
 
 window.addEventListener('resize', resize);
+window.addEventListener('blur', () => {
+  if (!shotMode && screen === SCREEN_PLAY) {
+    screen = SCREEN_PAUSE;
+    world.state.phase = 'paused';
+    accumulator = 0;
+  }
+});
 canvas.addEventListener('click', (event) => handleClick(event.clientX, event.clientY));
 canvas.addEventListener('mousedown', () => audio.ensure());
 window.addEventListener('keydown', () => audio.ensure(), { once: true });

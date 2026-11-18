@@ -1,5 +1,6 @@
 import { FIELD, BOSS, COLORS } from './config.js';
 import { ZONES } from './zones.js';
+import { ORDERS, relayComplete } from './relay.js';
 import { SCREEN_OVER, SCREEN_WIN, normalizeSave, formatTime, dimOverlay, drawButton, screenButtons } from './screen-layout.js';
 
 // End-of-run stat sheet: label left, value right, same style as v1.
@@ -14,7 +15,7 @@ export function statsLines(s, save, isWin) {
     ['KILLS', String(s.kills)],
     ['TIME', formatTime(s.time)],
     ['LEVEL', String(s.level)],
-    ['GEMS COLLECTED', String(stats.gemsCollected || 0)],
+    s.relay ? [ORDERS[s.relay.rank].name, relayComplete(s) ? 'CLEARED  /  +' + ORDERS[s.relay.rank].reward + ' CORE' : 'INCOMPLETE'] : ['GEMS COLLECTED', String(stats.gemsCollected || 0)],
     ['CORES SALVAGED', String(stats.coresCollected || 0)],
     ['BEST COMBO', String(s.bestCombo || 0)],
   ];
@@ -113,10 +114,10 @@ export function drawWin(ctx, s, save) {
   ctx.restore();
   ctx.fillStyle = COLORS.text;
   ctx.font = '17px system-ui, sans-serif';
-  ctx.fillText('Wave 10 is yours. The arena is quiet — for now.', cx, 258);
+  ctx.fillText(`Wave ${s.wave} is yours. The arena is quiet — for now.`, cx, 258);
   ctx.fillStyle = COLORS.gold;
   ctx.font = 'bold 16px system-ui, sans-serif';
-  ctx.fillText('★  10 WAVES  ·  3 ZONES  ·  1 FINAL BOSS  ★', cx, 288);
+  ctx.fillText(s.wave === 10 ? '★  10 WAVES  ·  3 ZONES  ·  1 FINAL BOSS  ★' : `★  ENDLESS PATROL  ·  ${s.wave} WAVES CLEARED  ★`, cx, 288);
   drawNewBest(ctx, s, 316);
   drawStats(ctx, s, 338, save, true);
   for (const b of screenButtons(SCREEN_WIN, s)) drawButton(ctx, b, b.label, b.id === 'continue');
