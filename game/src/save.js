@@ -3,6 +3,7 @@
 // guarded in try/catch, so the game still runs when storage is unavailable
 // (private mode, file://, or a blocked origin). The v1 key
 // 'voidpulse_best' (a plain number) is migrated into best on first load.
+import { availableRig } from './rigs.js';
 const SAVE_KEY = 'voidpulse_save_v2';
 const LEGACY_KEY = 'voidpulse_best';
 
@@ -18,6 +19,7 @@ export function defaultSave() {
     maxWave: 0,
     // Last zone the player picked on the title map; START RUN reuses it.
     lastZone: 'drift',
+    rig: 'survey',
   };
 }
 
@@ -44,6 +46,7 @@ export function loadSave() {
           && ['drift', 'ember', 'violet'].includes(parsed.lastZone)) {
           save.lastZone = parsed.lastZone;
         }
+        save.rig = availableRig(parsed.rig, save.cores).id;
         return save;
       }
     }

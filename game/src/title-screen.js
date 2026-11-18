@@ -150,5 +150,16 @@ export function drawTitle(ctx, save, state) {
   }
   ctx.fillStyle = COLORS.dim;
   ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('An original game. No borrowed names, art or music.', cx, 650);
+  ctx.font = 'bold 15px monospace';
+  ctx.fillText(`HANGAR  /  ${sv.cores} CORES SALVAGED  /  SELECT LAUNCH RIG`, cx, 659);
+  for (const rig of buttons.filter(button => button.id.startsWith('rig-'))) {
+    ctx.fillStyle = rig.selected ? '#12323d' : '#111627';
+    ctx.fillRect(rig.x, rig.y, rig.w, rig.h);
+    ctx.fillStyle = rig.selected ? COLORS.player : COLORS.dim;
+    ctx.fillRect(rig.x, rig.y, rig.w, 2);
+    ctx.font = 'bold 15px monospace';
+    ctx.fillText(rig.name + (rig.locked ? '  /  ' + rig.cores + ' CORES' : rig.selected ? '  /  FITTED' : '  /  EQUIP'), rig.x + rig.w / 2, rig.y + 25);
+    ctx.font = '14px system-ui';
+    ctx.fillText(rig.detail, rig.x + rig.w / 2, rig.y + 48);
+  }
 }

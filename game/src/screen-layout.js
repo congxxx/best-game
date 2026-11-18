@@ -1,4 +1,5 @@
 import { FIELD, COLORS } from './config.js';
+import { RIGS } from './rigs.js';
 import { ZONES, isZoneUnlocked } from './zones.js';
 
 export const SCREEN_TITLE = 'title';
@@ -26,6 +27,7 @@ export function normalizeSave(save) {
     cores: save.cores || 0,
     maxWave: save.maxWave || 0,
     lastZone: save.lastZone || 'drift',
+    rig: save.rig || 'survey',
   };
 }
 
@@ -89,7 +91,11 @@ export function screenButtons(screen, state, save) {
       locked: !isZoneUnlocked(zone.id, sv),
       key: String(i + 1),
     }));
-    return [...cards, {
+    const rigs = RIGS.map((rig, index) => ({
+      ...rig, id: 'rig-' + rig.id, x: 160 + index * 330, y: 680, w: 300, h: 68,
+      locked: sv.cores < rig.cores, selected: (sv.rig || 'survey') === rig.id,
+    }));
+    return [...cards, ...rigs, {
       id: 'start', x: cx - 130, y: 566, w: 260, h: 56, label: 'START RUN',
     }];
   }

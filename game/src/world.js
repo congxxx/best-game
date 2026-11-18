@@ -6,6 +6,7 @@
 import { FIELD, MAX_PARTICLES, MAX_TEXTS, xpForLevel, waveClearBonus } from './config.js';
 import { createPlayer, createParticle, createFloatingText } from './entities.js';
 import { makeRng } from './random.js';
+import { fitRig } from './rigs.js';
 import { zoneForWave, zoneIndex } from './zones.js';
 import { rollUpgrades, applyUpgrade } from './upgrades.js';
 import { startWave, spawnEnemy } from './waves.js';
@@ -73,8 +74,9 @@ export class World {
   // starts in CYAN DRIFT. Wave numbering stays 1..10 — only the zone
   // cycle is offset, so a run starting in EMBER REEF plays
   // ember -> violet -> drift -> ember ...
-  startRun(zoneId) {
+  startRun(zoneId, rig = 'survey') {
     this.reset(this.seed);
+    fitRig(this.state.player, rig);
     this.state.zoneOffset = zoneIndex(zoneId);
     this.state.phase = 'play';
     startWave(this, 1);

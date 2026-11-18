@@ -4,6 +4,8 @@
 // No game logic lives here; it only reads world.state and paints it.
 import { FIELD, COLORS, BOSS } from './config.js';
 import { mulberry32 } from './random.js';
+import { drawHorizon } from './horizon.js';
+import { drawEnemyHull } from './enemy-hulls.js';
 import { ZONES } from './zones.js';
 import {
   SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_PAUSE, SCREEN_OVER, SCREEN_WIN,
@@ -21,25 +23,12 @@ export {
 // Fixed starfield, generated once from a constant seed so it never flickers.
 const STAR_RNG = mulberry32(424242);
 const STARS = [];
-for (let i = 0; i < 180; i += 1) {
+for (let i = 0; i < 80; i += 1) {
   STARS.push({
     x: STAR_RNG() * FIELD.width, y: STAR_RNG() * FIELD.height,
     r: 0.6 + STAR_RNG() * 1.6, tw: STAR_RNG() * 6.28,
   });
 }
-// Small nebula wisps, fixed positions spread over the whole field so the
-// corners are not empty sky. Drawn in the zone accent at a very low alpha
-// (see drawBackground) so the field stays readable.
-const WISPS = [];
-for (let i = 0; i < 12; i += 1) {
-  WISPS.push({
-    x: 60 + STAR_RNG() * (FIELD.width - 120),
-    y: 90 + STAR_RNG() * (FIELD.height - 180),
-    r: 42 + STAR_RNG() * 55,
-    a: 0.035 + STAR_RNG() * 0.03,
-  });
-}
-
 function hexToRgba(hex, alpha) {
   const n = parseInt(hex.slice(1), 16);
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${alpha})`;
@@ -173,8 +162,6 @@ function drawBackground(ctx, time, zone) {
   // then to the v1 cyan palette when no zone is set at all.
   const z = zone || (ZONES && ZONES[0]) || null;
   const bg = z ? z.bg : COLORS.bg;
-  const grid = z ? z.grid : COLORS.grid;
-  const gridBright = z ? z.gridBright : COLORS.gridBright;
   const nebulae = z ? z.nebulae : NEBULAE;
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
@@ -182,48 +169,24 @@ function drawBackground(ctx, time, zone) {
     // Soft radial wash: no hard-edged colour blobs.
     nebulaWash(ctx, neb.x, neb.y, neb.r, neb.color);
   }
-  // Small wisps in the zone accent, spread across the whole field.
-  const accent = (z && z.accent) || COLORS.player;
-  for (const w of WISPS) {
-    glowCircle(ctx, w.x, w.y, w.r, hexToRgba(accent, w.a), 1);
-  }
   for (const star of STARS) {
     const a = 0.25 + 0.55 * (0.5 + 0.5 * Math.sin(time * 1.5 + star.tw));
     glowCircle(ctx, star.x, star.y, star.r, '#cfe6ff', a);
   }
-  // Neon grid, gently breathing.
-  const pulse = 0.5 + 0.5 * Math.sin(time * 0.8);
-  ctx.strokeStyle = grid;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  for (let x = 0; x <= FIELD.width; x += 64) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, FIELD.height);
-  }
-  for (let y = 0; y <= FIELD.height; y += 64) {
-    ctx.moveTo(0, y);
-    ctx.lineTo(FIELD.width, y);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 0.7 + 0.3 * pulse;
-  ctx.strokeStyle = gridBright;
-  ctx.beginPath();
-  for (let x = 0; x <= FIELD.width; x += 256) {
-    ctx.moveTo(x, 0);
-    ctx.lineTo(x, FIELD.height);
-  }
-  for (let y = 0; y <= FIELD.height; y += 256) {
-    ctx.moveTo(0, y);
-    ctx.lineTo(FIELD.width, y);
-  }
-  ctx.stroke();
-  ctx.globalAlpha = 1;
+  drawHorizon(ctx, z);
   // Zone motif, behind the entities: the three zones read differently.
   drawMotif(ctx, z);
 }
 
 function drawPlayer(ctx, p, time) {
-  if (p.iframes > 0 && Math.floor(time * 18) % 2 === 0) return;
+  const shield = p.iframes > 0 && Math.floor(time * 18) % 2 === 0;
+  ctx.strokeStyle = shield ? '#fff' : '#70f6ee';
+  ctx.lineWidth = 2;
+  for (const angle of [0.2, 2.3, 4.4]) {
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.radius + 11, angle, angle + 0.9);
+    ctx.stroke();
+  }
   glowCircle(ctx, p.x, p.y, p.radius + 12, 'rgba(57,230,255,0.18)', 1);
   ctx.save();
   ctx.translate(p.x, p.y);
@@ -262,47 +225,15 @@ function drawPlayer(ctx, p, time) {
 
 function drawEnemy(ctx, e, time) {
   const flash = e.flash > 0;
-  glowCircle(ctx, e.x, e.y, e.radius + 7, e.color, 0.28);
+  glowCircle(ctx, e.x, e.y, e.radius + 3, e.color, 0.13);
   ctx.save();
   ctx.translate(e.x, e.y);
-  ctx.rotate(e.angle);
+  ctx.rotate(e.kind === 'darter' && e.lunging > 0 ? Math.atan2(e.lungeY, e.lungeX) : e.angle);
   ctx.fillStyle = flash ? '#ffffff' : e.color;
   ctx.strokeStyle = e.elite ? COLORS.gold : 'rgba(255,255,255,0.25)';
   ctx.lineWidth = e.elite ? 3 : 1.5;
   ctx.beginPath();
-  if (e.shape === 'diamond') {
-    ctx.moveTo(e.radius, 0);
-    ctx.lineTo(0, e.radius);
-    ctx.lineTo(-e.radius, 0);
-    ctx.lineTo(0, -e.radius);
-    ctx.closePath();
-  } else if (e.shape === 'blob') {
-    // Splitter: a lumpy, irregular 7-point polygon — clearly not the
-    // chaser's clean diamond.
-    const radii = [1, 0.72, 1.05, 0.68, 0.95, 0.8, 1.08];
-    for (let i = 0; i < 7; i += 1) {
-      const a = (i / 7) * Math.PI * 2;
-      const r = e.radius * radii[i];
-      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
-      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
-    }
-    ctx.closePath();
-  } else if (e.shape === 'arrow') {
-    ctx.moveTo(e.radius + 6, 0);
-    ctx.lineTo(-e.radius, -e.radius * 0.8);
-    ctx.lineTo(-e.radius * 0.4, 0);
-    ctx.lineTo(-e.radius, e.radius * 0.8);
-    ctx.closePath();
-  } else if (e.shape === 'hex') {
-    for (let i = 0; i < 6; i += 1) {
-      const a = (i / 6) * Math.PI * 2;
-      if (i === 0) ctx.moveTo(Math.cos(a) * e.radius, Math.sin(a) * e.radius);
-      else ctx.lineTo(Math.cos(a) * e.radius, Math.sin(a) * e.radius);
-    }
-    ctx.closePath();
-  } else if (e.shape === 'square') {
-    ctx.rect(-e.radius * 0.85, -e.radius * 0.85, e.radius * 1.7, e.radius * 1.7);
-  } else if (e.shape === 'core') {
+  if (e.shape === 'core') {
     // VOIDHEART: pulsing core with a rotating ring.
     const pulse = 1 + 0.08 * Math.sin(time * 4 + e.pulse);
     ctx.rotate(-e.angle);
@@ -331,24 +262,7 @@ function drawEnemy(ctx, e, time) {
     drawEnemyHp(ctx, e);
     return;
   }
-  ctx.fill();
-  ctx.stroke();
-  if (e.shape === 'square') {
-    // Shooter: a turret barrel on the square body, pointing along the
-    // facing direction (the context is already rotated by e.angle).
-    ctx.fillStyle = flash ? '#ffffff' : e.color;
-    ctx.fillRect(0, -e.radius * 0.28, e.radius * 1.25, e.radius * 0.56);
-    ctx.fillStyle = 'rgba(5,6,15,0.6)';
-    ctx.beginPath();
-    ctx.arc(e.radius * 1.25, 0, e.radius * 0.3, 0, Math.PI * 2);
-    ctx.fill();
-  }
-  if (e.shape === 'blob') {
-    ctx.fillStyle = 'rgba(5,6,15,0.55)';
-    ctx.beginPath();
-    ctx.arc(0, 0, e.radius * 0.45, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  drawEnemyHull(ctx, e);
   ctx.restore();
   drawEnemyHp(ctx, e);
   if (e.elite && !e.boss) {
@@ -442,7 +356,7 @@ function drawEntities(ctx, s, time) {
   // Gems.
   for (const g of s.gems) {
     const bob = 1 + 0.12 * Math.sin(g.bob);
-    glowCircle(ctx, g.x, g.y, g.radius * 2.2, g.color, 0.35);
+    glowCircle(ctx, g.x, g.y, g.radius * 1.4, g.color, 0.18);
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.rotate(Math.PI / 4);
@@ -452,7 +366,6 @@ function drawEntities(ctx, s, time) {
     ctx.restore();
   }
   for (const e of s.enemies) drawEnemy(ctx, e, time);
-  if (s.player.alive) drawPlayer(ctx, s.player, time);
   // Bullets: a short trail behind each round so lines of fire read even
   // when a bullet only lives a few frames before hitting something.
   for (const b of s.bullets) {
@@ -465,7 +378,7 @@ function drawEntities(ctx, s, time) {
     ctx.moveTo(tx, ty);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
-    glowCircle(ctx, b.x, b.y, b.radius + 8, 'rgba(142,246,255,0.32)', 1);
+    glowCircle(ctx, b.x, b.y, b.radius + 3, 'rgba(142,246,255,0.20)', 1);
     ctx.fillStyle = b.crit ? COLORS.gold : '#d8fbff';
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.crit ? b.radius + 2.5 : b.radius + 1, 0, Math.PI * 2);
@@ -496,10 +409,12 @@ function drawEntities(ctx, s, time) {
     ctx.fill();
   }
   ctx.globalAlpha = 1;
+  if (s.player.alive) drawPlayer(ctx, s.player, time);
   // Floating texts.
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px system-ui, sans-serif';
   for (const t of s.texts) {
+    if (/^\d+(?:\.\d+)?$/.test(t.text) || /^\+\d+ XP$/.test(t.text)) continue;
     ctx.globalAlpha = Math.max(0, t.life / t.maxLife);
     ctx.fillStyle = t.color;
     // Keep centred text on the field: a gem picked up at the edge would

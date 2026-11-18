@@ -55,7 +55,7 @@ function drainSfx() {
 function startRun(zoneId) {
   audio.ensure();
   audio.startMusic();
-  world.startRun(zoneId);
+  world.startRun(zoneId, save.rig);
   screen = SCREEN_PLAY;
   accumulator = 0;
 }
@@ -131,6 +131,10 @@ function handleClick(clientX, clientY) {
       if (b.id === 'start') startRun(save.lastZone);
       else if (b.id === 'restart') startRun(save.lastZone);
       else if (b.id === 'map') showMap();
+      else if (b.id.startsWith('rig-') && !b.locked) {
+        save.rig = b.id.slice(4);
+        persistSave(save);
+      }
       else if (b.id.startsWith('zone-')) {
         tryStartZone(b.id.slice(5));
       } else if (b.id === 'resume') {
