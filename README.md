@@ -31,4 +31,8 @@ The optional relay campaign carries one field order into each run. Enter the gol
 
 Every 12 kills charge Counterpulse. When the HUD shows **E / REFLECT**, press E to send nearby hostile rounds back along their incoming paths. An empty activation costs nothing. During VOIDHEART's second phase the ring bursts become denser and more frequent; the HUD counts down the final 0.8 seconds before each volley.
 
+Signal League runs alongside survival. Mara Rook flies at a steady speed; Ion Vale accelerates on each leg. Their outlined ships are non-hostile pace pilots. A gate opens every wave: the first, second and third pilots to enter its ring earn 3, 2 and 1 point respectively. A missed gate scores nothing. The live board shows shared places for tied scores. Victory or defeat banks the heat's points into the career standings once; endless play does not reopen the finished heat.
+
+Press T at the zone map to open the tuning tree. Each root costs 3 lifetime salvage cores; each specialization costs another 5 and requires its parent. Research persists across all rigs. A fitted specialization includes its parent's modifiers; changing branches or returning to stock is free. Research does not revoke rig unlocks. The nav radar shows your heading, rival pilot colors, the untagged race gate (square and dotted course), and the current campaign uplink (gold ring), not bullets or enemies.
+
 To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=start&seed=1337`, `?shot=boss&seed=27`, `?shot=levelup&seed=1337` and `?shot=win&seed=18`, in that order.

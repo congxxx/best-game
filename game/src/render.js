@@ -6,6 +6,9 @@ import { FIELD, COLORS, BOSS } from './config.js';
 import { mulberry32 } from './random.js';
 import { drawHorizon } from './horizon.js';
 import { pulseHint } from './counterpulse.js';
+import { drawPilots, drawLeaderboard } from './league-display.js';
+import { drawRadar } from './nav-radar.js';
+import { drawResearchReport } from './workshop.js';
 import { paintRelay, relayStatus, ORDERS } from './relay.js';
 import { drawEnemyHull } from './enemy-hulls.js';
 import { ZONES } from './zones.js';
@@ -476,9 +479,12 @@ export function drawGame(ctx, world, screen, save) {
   }
   drawBackground(ctx, s.time, s.zone);
   if (screen === SCREEN_PLAY) paintRelay(ctx, s);
+  if (screen === SCREEN_PLAY) drawPilots(ctx, s);
   drawEntities(ctx, s, s.time);
   if (screen === SCREEN_PLAY || screen === SCREEN_LEVELUP || screen === SCREEN_PAUSE) {
     drawHud(ctx, s);
+    if (screen === SCREEN_PLAY) drawLeaderboard(ctx, s, sv);
+    if (screen === SCREEN_PLAY) drawRadar(ctx, s);
   }
   ctx.restore();
   if (screen === SCREEN_TITLE) drawTitle(ctx, sv, s);
@@ -486,4 +492,6 @@ export function drawGame(ctx, world, screen, save) {
   else if (screen === SCREEN_PAUSE) drawPause(ctx);
   else if (screen === SCREEN_OVER) drawOver(ctx, s, sv);
   else if (screen === SCREEN_WIN) drawWin(ctx, s, sv);
+  if (screen === SCREEN_WIN || screen === SCREEN_OVER) drawLeaderboard(ctx, s, sv, true);
+  if (screen === SCREEN_WIN || screen === SCREEN_OVER) drawResearchReport(ctx, sv);
 }

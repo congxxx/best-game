@@ -5,6 +5,7 @@ import { FIELD, STEP } from './config.js';
 import { createWorld } from './world.js';
 import { Input } from './input.js';
 import { counterpulse } from './counterpulse.js';
+import { equip } from './tuning.js';
 import { AudioEngine } from './audio.js';
 import {
   drawGame, screenButtons,
@@ -56,7 +57,7 @@ function drainSfx() {
 function startRun(zoneId) {
   audio.ensure();
   audio.startMusic();
-  world.startRun(zoneId, save.rig, save.relayRank);
+  world.startRun(zoneId, save.rig, save.relayRank, save.tuning.fitted);
   screen = SCREEN_PLAY;
   accumulator = 0;
 }
@@ -78,6 +79,14 @@ function tryStartZone(zoneId) {
 }
 
 function handleKey() {
+  if (screen === SCREEN_TITLE && input.wasPressed('t')) {
+    world.state.workshop = !world.state.workshop;
+    return;
+  }
+  if (screen === SCREEN_TITLE && world.state.workshop) {
+    if (input.wasPressed('escape')) world.state.workshop = false;
+    return;
+  }
   if (screen === SCREEN_PLAY && input.wasPressed('e')) counterpulse(world);
   if ((screen === SCREEN_OVER || screen === SCREEN_WIN) && input.wasPressed('z')) {
     showMap();
@@ -133,6 +142,8 @@ function handleClick(clientX, clientY) {
       if (b.id === 'start') startRun(save.lastZone);
       else if (b.id === 'restart') startRun(save.lastZone);
       else if (b.id === 'map') showMap();
+      else if (b.id === 'workshop') world.state.workshop = !world.state.workshop;
+      else if (b.id.startsWith('mod-') && equip(save, b.id.slice(4))) persistSave(save);
       else if (b.id.startsWith('rig-') && !b.locked) {
         save.rig = b.id.slice(4);
         persistSave(save);

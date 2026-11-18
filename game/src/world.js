@@ -7,7 +7,9 @@ import { FIELD, MAX_PARTICLES, MAX_TEXTS, xpForLevel, waveClearBonus } from './c
 import { createPlayer, createParticle, createFloatingText } from './entities.js';
 import { makeRng } from './random.js';
 import { fitRig } from './rigs.js';
+import { applyTuning } from './tuning.js';
 import { createRelay, advanceRelay } from './relay.js';
+import { createLeague, tickLeague } from './pilot-league.js';
 import { zoneForWave, zoneIndex } from './zones.js';
 import { rollUpgrades, applyUpgrade } from './upgrades.js';
 import { startWave, spawnEnemy } from './waves.js';
@@ -76,10 +78,12 @@ export class World {
   // starts in CYAN DRIFT. Wave numbering stays 1..10 — only the zone
   // cycle is offset, so a run starting in EMBER REEF plays
   // ember -> violet -> drift -> ember ...
-  startRun(zoneId, rig = 'survey', rank = 0) {
+  startRun(zoneId, rig = 'survey', rank = 0, fitted = null) {
     this.reset(this.seed);
     this.state.relay = createRelay(rank);
+    this.state.league = createLeague(this.state.player);
     fitRig(this.state.player, rig);
+    applyTuning(this.state.player, fitted);
     this.state.zoneOffset = zoneIndex(zoneId);
     this.state.phase = 'play';
     startWave(this, 1);
@@ -204,6 +208,7 @@ export class World {
       if (s.bannerTimer <= 0) startWave(this, s.wave + 1);
     }
 
+    tickLeague(s, dt);
     updateEnemies(this, dt);
     if (s.phase === 'play') updateBullets(this, dt);
     if (s.phase === 'play') this.updateGems(dt);

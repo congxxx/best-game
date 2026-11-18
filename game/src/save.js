@@ -4,6 +4,8 @@
 // (private mode, file://, or a blocked origin). The v1 key
 // 'voidpulse_best' (a plain number) is migrated into best on first load.
 import { availableRig } from './rigs.js';
+import { cleanTuning } from './tuning.js';
+import { bankLeague } from './pilot-league.js';
 import { ORDERS, relayComplete } from './relay.js';
 const SAVE_KEY = 'voidpulse_save_v2';
 const LEGACY_KEY = 'voidpulse_best';
@@ -21,7 +23,9 @@ export function defaultSave() {
     // Last zone the player picked on the title map; START RUN reuses it.
     lastZone: 'drift',
     rig: 'survey',
+    tuning: cleanTuning(null, 0),
     relayRank: 0,
+    league: { you: 0, rook: 0, vale: 0 },
   };
 }
 
@@ -49,6 +53,11 @@ export function loadSave() {
           save.lastZone = parsed.lastZone;
         }
         save.rig = availableRig(parsed.rig, save.cores).id;
+        save.tuning = cleanTuning(parsed.tuning, save.cores);
+        for (const id of Object.keys(save.league)) {
+          const points = parsed.league?.[id];
+          if (Number.isSafeInteger(points) && points > 0) save.league[id] = points;
+        }
         if (Number.isInteger(parsed.relayRank)) save.relayRank = Math.min(ORDERS.length, Math.max(0, parsed.relayRank));
         return save;
       }
@@ -97,6 +106,7 @@ export function recordRun(save, state, outcome) {
   }
   if (state.wave > save.maxWave) save.maxWave = state.wave;
   const previous = state.runResult;
+  bankLeague(save, state);
   const kills = state.kills || 0;
   const cores = state.stats?.coresCollected || 0;
   if (!previous) save.runs += 1;

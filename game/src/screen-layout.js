@@ -1,5 +1,6 @@
 import { FIELD, COLORS } from './config.js';
 import { RIGS } from './rigs.js';
+import { workshopButtons } from './workshop.js';
 import { ZONES, isZoneUnlocked } from './zones.js';
 
 export const SCREEN_TITLE = 'title';
@@ -15,6 +16,7 @@ export function normalizeSave(save) {
   const base = {
     best: 0, bestByZone: {}, bestTime: 0, runs: 0, kills: 0, cores: 0,
     maxWave: 0, lastZone: 'drift',
+    tuning: { owned: [], fitted: null },
   };
   if (typeof save === 'number') return { ...base, best: save };
   if (!save || typeof save !== 'object') return base;
@@ -28,7 +30,9 @@ export function normalizeSave(save) {
     maxWave: save.maxWave || 0,
     lastZone: save.lastZone || 'drift',
     rig: save.rig || 'survey',
+    tuning: save.tuning || { owned: [], fitted: null },
     relayRank: save.relayRank || 0,
+    league: save.league || {},
   };
 }
 
@@ -84,6 +88,7 @@ export function drawButton(ctx, rect, label, accent) {
 export function screenButtons(screen, state, save) {
   const cx = FIELD.width / 2;
   if (screen === SCREEN_TITLE) {
+    if (state?.workshop) return workshopButtons();
     const sv = normalizeSave(save);
     const cards = ZONES.map((zone, i) => ({
       id: `zone-${zone.id}`,
@@ -96,7 +101,7 @@ export function screenButtons(screen, state, save) {
       ...rig, id: 'rig-' + rig.id, x: 160 + index * 330, y: 680, w: 300, h: 68,
       locked: sv.cores < rig.cores, selected: (sv.rig || 'survey') === rig.id,
     }));
-    return [...cards, ...rigs, {
+    return [...cards, ...rigs, { id: 'workshop', x: 770, y: 631, w: 350, h: 41 }, {
       id: 'start', x: cx - 130, y: 566, w: 260, h: 56, label: 'START RUN',
     }];
   }
