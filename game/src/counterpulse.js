@@ -13,12 +13,14 @@ export function counterpulse(world) {
   state.enemyBullets = state.enemyBullets.filter(shot => !reflected.has(shot));
   for (const shot of incoming) {
     const angle = Math.atan2(-shot.vy, -shot.vx);
-    state.bullets.push(createBullet(shot.x, shot.y, angle, player.bulletSpeed, player.bulletDamage, 0, false, true));
+    const round = createBullet(shot.x, shot.y, angle, player.bulletSpeed, player.bulletDamage, 0, false, true);
+    round.reflected = true;
+    state.bullets.push(round);
   }
   state.pulseCharge = 0;
   state.sfx.push('levelUp');
   world.burst(player.x, player.y, '#8ef6ff', 24, 290, 0.45);
-  world.addText(player.x, player.y - 36, 'REFLECTED ×' + incoming.length, '#8ef6ff');
+  state.lastReflection = { x: player.x, y: player.y, time: state.time, count: incoming.length };
   return true;
 }
 

@@ -35,4 +35,4 @@ Signal League runs alongside survival. Mara Rook flies at a steady speed; Ion Va
 
 Press T at the zone map to open the tuning tree. Each root costs 3 lifetime salvage cores; each specialization costs another 5 and requires its parent. Research persists across all rigs. A fitted specialization includes its parent's modifiers; changing branches or returning to stock is free. Research does not revoke rig unlocks. The nav radar shows your heading, rival pilot colors, the untagged race gate (square and dotted course), and the current campaign uplink (gold ring), not bullets or enemies.
 
-To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=start&seed=1337`, `?shot=boss&seed=27`, `?shot=levelup&seed=1337` and `?shot=win&seed=18`, in that order.
+To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=boss&seed=27`, `?shot=start&seed=1337`, `?shot=levelup&seed=1337` and `?shot=win&seed=18`, in that order. The cover is captured six simulation steps after the pilot activates the normal counterpulse action during VOIDHEART's second phase.

@@ -3,6 +3,7 @@
 // number of fixed steps, steered by a simple autopilot, so the frame is what
 // a short game really looks like and the same seed always gives the same frame.
 import { FIELD, STEP } from './config.js';
+import { counterpulse } from './counterpulse.js';
 import {
   SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_OVER, SCREEN_WIN,
 } from './render.js';
@@ -230,7 +231,9 @@ export function stageShot(name, world) {
       settleLevelUps(world);
       if (name === 'boss' && world.state.phase === 'play') {
         const boss = world.state.enemies.find(enemy => enemy.boss && !enemy.dead);
-        if (boss && boss.hp < boss.maxHp / 2 && boss.shootTimer < 0.75 && boss.y > 200 && world.state.enemyBullets.length >= 5) {
+        if (boss && boss.hp < boss.maxHp / 2 && boss.shootTimer < 0.75 && boss.y > 200 && world.state.enemyBullets.length >= 5 && counterpulse(world)) {
+          for (let frame = 0; frame < 6 && world.state.phase === 'play'; frame++) world.step(STEP, winPilot(world.state));
+          if (world.state.phase !== 'play') { settleLevelUps(world); continue; }
           return { screen: SCREEN_PLAY, best: world.state.score };
         }
       }

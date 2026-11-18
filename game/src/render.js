@@ -412,7 +412,7 @@ function drawEntities(ctx, s, time) {
   for (const b of s.bullets) {
     const tx = b.x - b.vx * 0.045;
     const ty = b.y - b.vy * 0.045;
-    ctx.strokeStyle = 'rgba(142,246,255,0.55)';
+    ctx.strokeStyle = b.reflected ? '#49ffcc' : 'rgba(142,246,255,0.55)';
     ctx.lineWidth = b.radius * 0.9;
     ctx.lineCap = 'round';
     ctx.beginPath();
@@ -451,6 +451,30 @@ function drawEntities(ctx, s, time) {
   }
   ctx.globalAlpha = 1;
   if (s.player.alive) drawPlayer(ctx, s.player, time);
+  const echo = s.lastReflection;
+  if (echo && time - echo.time < 0.85) {
+    const age = (time - echo.time) / 0.85;
+    ctx.save();
+    ctx.globalAlpha = 1 - age;
+    ctx.strokeStyle = '#62ffd6';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(echo.x, echo.y, 28 + age * 150, 0, Math.PI * 2);
+    ctx.stroke();
+    const left = Math.max(10, Math.min(FIELD.width - 234, echo.x - 112));
+    const top = echo.y < 238 ? echo.y + 45 : echo.y - 142;
+    ctx.fillStyle = '#08232d';
+    ctx.fillRect(left, top, 224, 55);
+    ctx.fillStyle = '#62ffd6';
+    ctx.fillRect(left, top, 3, 55);
+    ctx.textBaseline = 'alphabetic';
+    ctx.textAlign = 'left';
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText('VOIDPULSE  /  COUNTERPULSE', left + 11, top + 18);
+    ctx.font = 'bold 21px system-ui';
+    ctx.fillText(echo.count + (echo.count === 1 ? ' SHOT' : ' SHOTS') + ' REFLECTED', left + 10, top + 45, 204);
+    ctx.restore();
+  }
   // Floating texts.
   ctx.textAlign = 'center';
   ctx.font = 'bold 14px system-ui, sans-serif';
