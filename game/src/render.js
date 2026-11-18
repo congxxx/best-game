@@ -67,6 +67,107 @@ function glowCircle(ctx, x, y, r, color, alpha) {
   ctx.globalAlpha = 1;
 }
 
+// Soft nebula wash: a radial gradient that fades to transparent, so the
+// field has no hard-edged colour blobs. `color` is 'rgba(r,g,b,a)'.
+function nebulaWash(ctx, x, y, r, color) {
+  const m = color.match(/rgba\((\d+),(\d+),(\d+),([\d.]+)\)/);
+  if (!m) { glowCircle(ctx, x, y, r, color, 1); return; }
+  const [, cr, cg, cb, ca] = m;
+  const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+  g.addColorStop(0, `rgba(${cr},${cg},${cb},${ca})`);
+  g.addColorStop(0.6, `rgba(${cr},${cg},${cb},${+ca * 0.45})`);
+  g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`);
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+}
+
+// Per-zone background motif, painted at low alpha behind the grid so the
+// three zones read as different places. Deterministic fixed geometry.
+function drawMotif(ctx, zone) {
+  if (!zone || !zone.motif) return;
+  const accent = zone.accent;
+  ctx.save();
+  if (zone.motif === 'radar') {
+    // Radar arcs + crystal shards.
+    ctx.strokeStyle = hexToRgba(accent, 0.16);
+    ctx.lineWidth = 1.5;
+    for (const [cx, cy, r] of [[300, 230, 90], [300, 230, 150], [980, 590, 110], [980, 590, 175]]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0.3, Math.PI * 1.4);
+      ctx.stroke();
+    }
+    ctx.fillStyle = hexToRgba(accent, 0.13);
+    for (const [px, py, s] of [[180, 420, 14], [700, 150, 10], [1120, 350, 16], [520, 640, 12], [860, 700, 9]]) {
+      ctx.beginPath();
+      ctx.moveTo(px, py - s);
+      ctx.lineTo(px + s * 0.7, py);
+      ctx.lineTo(px, py + s * 0.5);
+      ctx.lineTo(px - s * 0.7, py);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (zone.motif === 'cracks') {
+    // Jagged volcanic cracks + angular floating shards + plasma streak.
+    ctx.strokeStyle = hexToRgba(accent, 0.20);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(60, 180);
+    ctx.lineTo(260, 260);
+    ctx.lineTo(420, 190);
+    ctx.lineTo(640, 300);
+    ctx.lineTo(900, 220);
+    ctx.lineTo(1220, 330);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(120, 640);
+    ctx.lineTo(340, 560);
+    ctx.lineTo(560, 660);
+    ctx.lineTo(820, 580);
+    ctx.lineTo(1140, 680);
+    ctx.stroke();
+    ctx.fillStyle = hexToRgba('#ffd23f', 0.16);
+    for (const [px, py, s, rot] of [[220, 420, 16, 0.5], [760, 140, 12, 1.1], [1060, 470, 18, 0.3], [480, 720, 11, 0.9]]) {
+      ctx.save();
+      ctx.translate(px, py);
+      ctx.rotate(rot);
+      ctx.fillRect(-s / 2, -s / 2, s, s);
+      ctx.restore();
+    }
+  } else if (zone.motif === 'rings') {
+    // Broken orbit rings + a gravity swirl + shards on the ring.
+    ctx.strokeStyle = hexToRgba(accent, 0.18);
+    ctx.lineWidth = 2;
+    for (const [cx, cy, r, a0, a1] of [
+      [330, 250, 80, 0.2, 2.4], [330, 250, 120, 3.0, 5.2],
+      [950, 580, 90, 1.0, 3.4], [950, 580, 140, 4.0, 5.8],
+    ]) {
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, a0, a1);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = hexToRgba('#ff3df0', 0.14);
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i += 1) {
+      ctx.beginPath();
+      ctx.arc(640, 400, 60 + i * 34, 0.6 + i * 0.7, Math.PI * 1.5 + i * 0.7);
+      ctx.stroke();
+    }
+    ctx.fillStyle = hexToRgba(accent, 0.16);
+    for (const [px, py, s] of [[330, 170, 8], [450, 250, 10], [950, 490, 9], [1090, 580, 11], [640, 300, 7]]) {
+      ctx.beginPath();
+      ctx.moveTo(px, py - s);
+      ctx.lineTo(px + s, py);
+      ctx.lineTo(px, py + s);
+      ctx.lineTo(px - s, py);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
 function drawBackground(ctx, time, zone) {
   // The current zone carries its own palette; fall back to the first zone,
   // then to the v1 cyan palette when no zone is set at all.
@@ -78,10 +179,8 @@ function drawBackground(ctx, time, zone) {
   ctx.fillStyle = bg;
   ctx.fillRect(0, 0, FIELD.width, FIELD.height);
   for (const neb of nebulae) {
-    // Zone nebulae carry their own alpha and are drawn twice so they read
-    // brighter than the faint v1 wash; the fallback keeps the single pass.
-    glowCircle(ctx, neb.x, neb.y, neb.r, neb.color, 1);
-    if (z) glowCircle(ctx, neb.x, neb.y, neb.r, neb.color, 1);
+    // Soft radial wash: no hard-edged colour blobs.
+    nebulaWash(ctx, neb.x, neb.y, neb.r, neb.color);
   }
   // Small wisps in the zone accent, spread across the whole field.
   const accent = (z && z.accent) || COLORS.player;
@@ -119,11 +218,13 @@ function drawBackground(ctx, time, zone) {
   }
   ctx.stroke();
   ctx.globalAlpha = 1;
+  // Zone motif, behind the entities: the three zones read differently.
+  drawMotif(ctx, z);
 }
 
 function drawPlayer(ctx, p, time) {
   if (p.iframes > 0 && Math.floor(time * 18) % 2 === 0) return;
-  glowCircle(ctx, p.x, p.y, p.radius + 16, 'rgba(57,230,255,0.24)', 1);
+  glowCircle(ctx, p.x, p.y, p.radius + 12, 'rgba(57,230,255,0.18)', 1);
   ctx.save();
   ctx.translate(p.x, p.y);
   ctx.rotate(p.angle);
@@ -146,7 +247,7 @@ function drawPlayer(ctx, p, time) {
       const a = p.orbitalAngle + (i / p.orbitals) * Math.PI * 2;
       const ox = p.x + Math.cos(a) * 92;
       const oy = p.y + Math.sin(a) * 92;
-      glowCircle(ctx, ox, oy, 12, 'rgba(141,246,255,0.25)', 1);
+      glowCircle(ctx, ox, oy, 10, 'rgba(141,246,255,0.2)', 1);
       ctx.fillStyle = '#bff6ff';
       ctx.beginPath();
       ctx.arc(ox, oy, 6, 0, Math.PI * 2);
@@ -161,7 +262,7 @@ function drawPlayer(ctx, p, time) {
 
 function drawEnemy(ctx, e, time) {
   const flash = e.flash > 0;
-  glowCircle(ctx, e.x, e.y, e.radius + 10, e.color, 0.36);
+  glowCircle(ctx, e.x, e.y, e.radius + 7, e.color, 0.28);
   ctx.save();
   ctx.translate(e.x, e.y);
   ctx.rotate(e.angle);
@@ -169,11 +270,22 @@ function drawEnemy(ctx, e, time) {
   ctx.strokeStyle = e.elite ? COLORS.gold : 'rgba(255,255,255,0.25)';
   ctx.lineWidth = e.elite ? 3 : 1.5;
   ctx.beginPath();
-  if (e.shape === 'diamond' || e.shape === 'blob') {
+  if (e.shape === 'diamond') {
     ctx.moveTo(e.radius, 0);
     ctx.lineTo(0, e.radius);
     ctx.lineTo(-e.radius, 0);
     ctx.lineTo(0, -e.radius);
+    ctx.closePath();
+  } else if (e.shape === 'blob') {
+    // Splitter: a lumpy, irregular 7-point polygon — clearly not the
+    // chaser's clean diamond.
+    const radii = [1, 0.72, 1.05, 0.68, 0.95, 0.8, 1.08];
+    for (let i = 0; i < 7; i += 1) {
+      const a = (i / 7) * Math.PI * 2;
+      const r = e.radius * radii[i];
+      if (i === 0) ctx.moveTo(Math.cos(a) * r, Math.sin(a) * r);
+      else ctx.lineTo(Math.cos(a) * r, Math.sin(a) * r);
+    }
     ctx.closePath();
   } else if (e.shape === 'arrow') {
     ctx.moveTo(e.radius + 6, 0);
@@ -221,6 +333,16 @@ function drawEnemy(ctx, e, time) {
   }
   ctx.fill();
   ctx.stroke();
+  if (e.shape === 'square') {
+    // Shooter: a turret barrel on the square body, pointing along the
+    // facing direction (the context is already rotated by e.angle).
+    ctx.fillStyle = flash ? '#ffffff' : e.color;
+    ctx.fillRect(0, -e.radius * 0.28, e.radius * 1.25, e.radius * 0.56);
+    ctx.fillStyle = 'rgba(5,6,15,0.6)';
+    ctx.beginPath();
+    ctx.arc(e.radius * 1.25, 0, e.radius * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  }
   if (e.shape === 'blob') {
     ctx.fillStyle = 'rgba(5,6,15,0.55)';
     ctx.beginPath();
@@ -318,7 +440,7 @@ function drawEntities(ctx, s, time) {
   // Gems.
   for (const g of s.gems) {
     const bob = 1 + 0.12 * Math.sin(g.bob);
-    glowCircle(ctx, g.x, g.y, g.radius * 2.6, g.color, 0.42);
+    glowCircle(ctx, g.x, g.y, g.radius * 2.2, g.color, 0.35);
     ctx.save();
     ctx.translate(g.x, g.y);
     ctx.rotate(Math.PI / 4);
@@ -341,7 +463,7 @@ function drawEntities(ctx, s, time) {
     ctx.moveTo(tx, ty);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
-    glowCircle(ctx, b.x, b.y, b.radius + 11, 'rgba(142,246,255,0.4)', 1);
+    glowCircle(ctx, b.x, b.y, b.radius + 8, 'rgba(142,246,255,0.32)', 1);
     ctx.fillStyle = b.crit ? COLORS.gold : '#d8fbff';
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.crit ? b.radius + 2.5 : b.radius + 1, 0, Math.PI * 2);
@@ -357,7 +479,7 @@ function drawEntities(ctx, s, time) {
     ctx.moveTo(tx, ty);
     ctx.lineTo(b.x, b.y);
     ctx.stroke();
-    glowCircle(ctx, b.x, b.y, b.radius + 9, 'rgba(255,93,143,0.45)', 1);
+    glowCircle(ctx, b.x, b.y, b.radius + 7, 'rgba(255,93,143,0.35)', 1);
     ctx.fillStyle = COLORS.enemyBullet;
     ctx.beginPath();
     ctx.arc(b.x, b.y, b.radius, 0, Math.PI * 2);

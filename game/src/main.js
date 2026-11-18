@@ -10,7 +10,7 @@ import {
   SCREEN_TITLE, SCREEN_PLAY, SCREEN_LEVELUP, SCREEN_PAUSE, SCREEN_OVER, SCREEN_WIN,
 } from './render.js';
 import { stageShot } from './shots.js';
-import { loadSave, recordRun, persistSave } from './save.js';
+import { loadSave, recordRun, persistSave, defaultSave } from './save.js';
 import { ZONES, isZoneUnlocked, unlockRequirement } from './zones.js';
 
 const canvas = document.getElementById('game');
@@ -189,6 +189,15 @@ function initShotMode() {
   world.rng = shotWorld.rng;
   world.seed = shotWorld.seed;
   screen = result.screen;
+  // A staged run that actually finished (win or over) is recorded into
+  // a fresh save, so the end screen's BEST / stats show the real run —
+  // not 0 from the empty screenshot profile. The run really happened
+  // in the sim; nothing here is invented.
+  if ((shotWorld.state.phase === 'win' || shotWorld.state.phase === 'over')
+    && shotWorld.state.time > 0) {
+    save = recordRun(defaultSave(), shotWorld.state,
+      shotWorld.state.phase === 'win' ? 'win' : 'over').save;
+  }
   // Shot mode shows the loaded save (fresh screenshot profiles have an
   // empty localStorage, so bests show 0/—, which is fine).
   drawGame(ctx, world, screen, save);

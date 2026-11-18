@@ -5,6 +5,7 @@
 // handling — do not move them.
 import { FIELD, COLORS } from './config.js';
 import { ZONES, isZoneUnlocked, unlockRequirement } from './zones.js';
+import { UPGRADE_POOL } from './upgrades.js';
 
 export const SCREEN_TITLE = 'title';
 export const SCREEN_PLAY = 'play';
@@ -89,13 +90,13 @@ export function screenButtons(screen, state, save) {
     const sv = normalizeSave(save);
     const cards = ZONES.map((zone, i) => ({
       id: `zone-${zone.id}`,
-      x: 160 + i * 330, y: 350, w: 300, h: 128,
+      x: 160 + i * 330, y: 350, w: 300, h: 185,
       label: zone.name,
       locked: !isZoneUnlocked(zone.id, sv),
       key: String(i + 1),
     }));
     return [...cards, {
-      id: 'start', x: cx - 130, y: 516, w: 260, h: 56, label: 'START RUN',
+      id: 'start', x: cx - 130, y: 566, w: 260, h: 56, label: 'START RUN',
     }];
   }
   if (screen === SCREEN_LEVELUP) {
@@ -119,8 +120,8 @@ export function screenButtons(screen, state, save) {
   }
   if (screen === SCREEN_WIN) {
     return [
-      { id: 'continue', x: cx - 280, y: 560, w: 260, h: 56, label: 'CONTINUE ENDLESS' },
-      { id: 'restart', x: cx + 20, y: 560, w: 260, h: 56, label: 'PLAY AGAIN  (R)' },
+      { id: 'continue', x: cx - 280, y: 624, w: 260, h: 56, label: 'CONTINUE ENDLESS' },
+      { id: 'restart', x: cx + 20, y: 624, w: 260, h: 56, label: 'PLAY AGAIN  (R)' },
     ];
   }
   return [];
@@ -319,11 +320,133 @@ function drawPadlock(ctx, cx, cy, size, color) {
   ctx.restore();
 }
 
-// One zone card on the title map, from its screenButtons entry `b`.
-// Unlocked: zone name in accent, per-zone BEST, 'CLICK TO START' and its
-// [ 1 / 2 / 3 ] key; the last-picked zone gets a small gold triangle in
-// the top-right corner. Locked: dimmed card, padlock + LOCKED, and the
-// unlock requirement line.
+// Code-drawn preview illustration for a zone card: a small scene in the
+// zone's own motif, so the three cards read as three different places
+// instead of three coloured labels. Deterministic; no RNG.
+export function drawZonePreview(ctx, zone, x, y, w, h) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(x, y, w, h);
+  ctx.clip();
+  ctx.fillStyle = zone.bg;
+  ctx.fillRect(x, y, w, h);
+  const accent = zone.accent;
+  if (zone.id === 'drift') {
+    // Cyan crystal energy structure + scan rings.
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.5;
+    for (const [cx, cy, r] of [[x + w * 0.5, y + h * 0.62, 34], [x + w * 0.72, y + h * 0.55, 24]]) {
+      ctx.globalAlpha = 0.5;
+      ctx.beginPath();
+      ctx.arc(cx, cy, r, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.arc(cx, cy, r * 0.6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = accent;
+    const shards = [
+      [0.28, 0.78, 26, 10], [0.42, 0.85, 34, 12], [0.58, 0.8, 22, 9], [0.72, 0.88, 16, 8],
+    ];
+    for (const [fx, fy, sh, sw] of shards) {
+      const px = x + w * fx;
+      const py = y + h * fy;
+      ctx.beginPath();
+      ctx.moveTo(px, py - sh);
+      ctx.lineTo(px + sw, py);
+      ctx.lineTo(px, py + sh * 0.4);
+      ctx.lineTo(px - sw, py);
+      ctx.closePath();
+      ctx.globalAlpha = 0.85;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#e8fbff';
+    for (const [fx, fy] of [[0.2, 0.25], [0.55, 0.18], [0.85, 0.3], [0.35, 0.4]]) {
+      ctx.beginPath();
+      ctx.arc(x + w * fx, y + h * fy, 1.6, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  } else if (zone.id === 'ember') {
+    // Angular volcanic cracks + an orange plasma channel.
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.08, y + h * 0.85);
+    ctx.lineTo(x + w * 0.3, y + h * 0.55);
+    ctx.lineTo(x + w * 0.52, y + h * 0.7);
+    ctx.lineTo(x + w * 0.78, y + h * 0.35);
+    ctx.lineTo(x + w * 0.95, y + h * 0.5);
+    ctx.stroke();
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath();
+    ctx.moveTo(x + w * 0.15, y + h * 0.3);
+    ctx.lineTo(x + w * 0.38, y + h * 0.5);
+    ctx.lineTo(x + w * 0.6, y + h * 0.28);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#ffd23f';
+    for (const [fx, fy, s] of [[0.25, 0.2, 7], [0.6, 0.15, 9], [0.82, 0.7, 6]]) {
+      ctx.save();
+      ctx.translate(x + w * fx, y + h * fy);
+      ctx.rotate(0.6);
+      ctx.fillRect(-s / 2, -s / 2, s, s);
+      ctx.restore();
+    }
+    // Hazard chevrons along the bottom edge.
+    ctx.fillStyle = accent;
+    for (let i = 0; i < 5; i += 1) {
+      const px = x + w * (0.1 + i * 0.18);
+      ctx.beginPath();
+      ctx.moveTo(px, y + h - 8);
+      ctx.lineTo(px + 7, y + h - 16);
+      ctx.lineTo(px + 14, y + h - 8);
+      ctx.lineTo(px + 7, y + h - 4);
+      ctx.closePath();
+      ctx.globalAlpha = 0.75;
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+  } else {
+    // Violet vortex: spiral arcs, a broken orbit ring, and a distant
+    // VOIDHEART silhouette (dark core, magenta ring) on the right.
+    ctx.strokeStyle = accent;
+    ctx.lineWidth = 1.5;
+    for (let i = 0; i < 3; i += 1) {
+      ctx.globalAlpha = 0.65 - i * 0.15;
+      ctx.beginPath();
+      ctx.arc(x + w * 0.38, y + h * 0.55, 12 + i * 11, 0.4 + i * 0.5, Math.PI * 1.7 + i * 0.5);
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    ctx.arc(x + w * 0.38, y + h * 0.55, 46, 0.2, Math.PI * 0.9);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(x + w * 0.38, y + h * 0.55, 46, Math.PI * 1.3, Math.PI * 1.9);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = '#1a0a2e';
+    ctx.beginPath();
+    ctx.arc(x + w * 0.82, y + h * 0.38, 13, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#ff3df0';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + w * 0.82, y + h * 0.38, 13, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ff8ef5';
+    for (const [fx, fy] of [[0.68, 0.2], [0.95, 0.55], [0.55, 0.85]]) {
+      ctx.beginPath();
+      ctx.arc(x + w * fx, y + h * fy, 1.8, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
 function drawZoneCard(ctx, b, sv) {
   const zone = ZONES.find((z) => `zone-${z.id}` === b.id) || ZONES[0];
   const cx = b.x + b.w / 2;
@@ -334,10 +457,16 @@ function drawZoneCard(ctx, b, sv) {
   roundRect(ctx, b.x, b.y, b.w, b.h, 12);
   ctx.fill();
   ctx.stroke();
+  // Preview illustration, dimmed but visible when locked.
+  drawZonePreview(ctx, zone, b.x + 10, b.y + 10, b.w - 20, 84);
+  if (locked) {
+    ctx.fillStyle = 'rgba(3,4,10,0.45)';
+    ctx.fillRect(b.x + 10, b.y + 10, b.w - 20, 84);
+  }
   if (!locked && sv.lastZone === zone.id) {
     ctx.fillStyle = COLORS.gold;
     const tx = b.x + b.w - 24;
-    const ty = b.y + 18;
+    const ty = b.y + 24;
     ctx.beginPath();
     ctx.moveTo(tx, ty - 7);
     ctx.lineTo(tx + 12, ty);
@@ -349,32 +478,28 @@ function drawZoneCard(ctx, b, sv) {
   ctx.textBaseline = 'alphabetic';
   ctx.fillStyle = locked ? COLORS.dim : zone.accent;
   ctx.font = 'bold 20px system-ui, sans-serif';
-  ctx.fillText(zone.name, cx, b.y + 36);
-  const best = sv.bestByZone[zone.id] || 0;
-  ctx.fillStyle = COLORS.text;
-  ctx.font = '14px system-ui, sans-serif';
-  ctx.fillText(`BEST ${best > 0 ? best : '—'}`, cx, b.y + 64);
+  ctx.fillText(zone.name, cx, b.y + 120);
   if (locked) {
-    // Padlock + LOCKED, centred as one row: padlock spans cx-41..cx-21,
-    // text starts at cx-13 and runs ~54px to cx+41.
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.fillText(unlockRequirement(zone.id), cx, b.y + 142);
+    // Padlock + LOCKED, centred as one row.
     ctx.textBaseline = 'middle';
-    drawPadlock(ctx, cx - 31, b.y + 90, 20, '#ff5d6d');
+    drawPadlock(ctx, cx - 31, b.y + 166, 20, '#ff5d6d');
     ctx.fillStyle = '#ff5d6d';
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.textAlign = 'left';
-    ctx.fillText('LOCKED', cx - 13, b.y + 90);
+    ctx.fillText('LOCKED', cx - 13, b.y + 166);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillStyle = COLORS.dim;
-    ctx.font = '12px system-ui, sans-serif';
-    ctx.fillText(unlockRequirement(zone.id), cx, b.y + 114);
   } else {
+    const best = sv.bestByZone[zone.id] || 0;
+    ctx.fillStyle = COLORS.text;
+    ctx.font = '14px system-ui, sans-serif';
+    ctx.fillText(`BEST ${best > 0 ? best : '—'}`, cx, b.y + 142);
     ctx.fillStyle = zone.accent;
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillText('CLICK TO START', cx, b.y + 90);
-    ctx.fillStyle = COLORS.gold;
-    ctx.font = 'bold 12px system-ui, sans-serif';
-    ctx.fillText(`[ ${b.key} ]`, cx, b.y + 114);
+    ctx.fillText(`CLICK TO START  [ ${b.key} ]`, cx, b.y + 166);
   }
 }
 
@@ -395,16 +520,18 @@ export function drawTitle(ctx, save, state) {
   ctx.fillStyle = COLORS.text;
   ctx.font = '17px system-ui, sans-serif';
   ctx.fillText('Hold the arena. Survive the waves. Break the VOIDHEART on wave 10.', cx, 214);
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = 'bold 18px system-ui, sans-serif';
+  ctx.fillText('10 WAVES  •  3 ZONES  •  1 FINAL BOSS', cx, 248);
   ctx.fillStyle = COLORS.dim;
   ctx.font = '15px system-ui, sans-serif';
-  ctx.fillText('WASD / Arrows — move · Mouse — aim · Auto-fire always on', cx, 244);
-  ctx.fillText('Collect XP gems · Pick upgrades on level-up · P / Esc — pause · R — restart', cx, 268);
+  ctx.fillText('WASD / Arrows — move · Mouse — aim · Auto-fire always on · P — pause · R — restart', cx, 276);
   ctx.fillStyle = COLORS.gold;
   ctx.font = 'bold 16px system-ui, sans-serif';
-  ctx.fillText(`BEST SCORE  ${sv.best}   ·   RUNS ${sv.runs}   ·   TOTAL KILLS ${sv.kills}`, cx, 300);
+  ctx.fillText(`BEST SCORE  ${sv.best}   ·   RUNS ${sv.runs}   ·   TOTAL KILLS ${sv.kills}`, cx, 306);
   ctx.fillStyle = COLORS.dim;
   ctx.font = 'bold 15px system-ui, sans-serif';
-  ctx.fillText('— SELECT ZONE —', cx, 334);
+  ctx.fillText('— SELECT ZONE —', cx, 336);
   // The zone-select map: three cards in a row, same grid as level-up.
   const buttons = screenButtons(SCREEN_TITLE, st, sv);
   for (const b of buttons) {
@@ -415,15 +542,14 @@ export function drawTitle(ctx, save, state) {
   if (notice && Date.now() < notice.until) {
     ctx.fillStyle = '#ff5d6d';
     ctx.font = 'bold 15px system-ui, sans-serif';
-    ctx.fillText(notice.text, cx, 502);
+    ctx.fillText(notice.text, cx, 550);
   }
   for (const b of buttons) {
     if (b.id === 'start') drawButton(ctx, b, b.label, true);
   }
   ctx.fillStyle = COLORS.dim;
   ctx.font = '12px system-ui, sans-serif';
-  ctx.fillText('Elites glow gold every 3rd wave. Splitters burst into minis. Good hunting.', cx, 596);
-  ctx.fillText('An original game. No borrowed names, art or music.', cx, 620);
+  ctx.fillText('An original game. No borrowed names, art or music.', cx, 650);
 }
 
 export function drawLevelUp(ctx, s) {
@@ -452,13 +578,54 @@ export function drawLevelUp(ctx, s) {
     ctx.fillStyle = COLORS.text;
     ctx.font = 'bold 23px system-ui, sans-serif';
     ctx.fillText(u.name, rect.x + rect.w / 2, rect.y + 108);
+    // Category tag, so the ten upgrades do not all look alike.
+    ctx.fillStyle = u.cat === 'WEAPON' ? '#ffd23f'
+      : u.cat === 'DEFENSE' ? '#7dffb0' : '#ff3df0';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.fillText(u.cat || '', rect.x + rect.w / 2, rect.y + 134);
     ctx.fillStyle = COLORS.dim;
     ctx.font = '15px system-ui, sans-serif';
-    ctx.fillText(u.desc, rect.x + rect.w / 2, rect.y + 142);
+    ctx.fillText(u.desc, rect.x + rect.w / 2, rect.y + 162);
     ctx.fillStyle = COLORS.gold;
     ctx.font = 'bold 14px system-ui, sans-serif';
-    ctx.fillText(`[ ${i + 1} ]`, rect.x + rect.w / 2, rect.y + 188);
+    ctx.fillText(`[ ${i + 1} ]`, rect.x + rect.w / 2, rect.y + 196);
   });
+  // Current build bar: what the run has already taken, with stacks.
+  const counts = {};
+  for (const id of s.upgradesTaken || []) counts[id] = (counts[id] || 0) + 1;
+  const ids = Object.keys(counts);
+  if (ids.length > 0) {
+    const y = 566;
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.fillText('CURRENT BUILD', cx, y);
+    // Measure chips first so the row is centred.
+    ctx.font = '13px system-ui, sans-serif';
+    const chips = ids.map((id) => {
+      const u = UPGRADE_POOL.find((x) => x.id === id);
+      const label = `${u ? u.name : id}${counts[id] > 1 ? ` ×${counts[id]}` : ''}`;
+      return { id, label, w: 30 + ctx.measureText(label).width + 14 };
+    });
+    const total = chips.reduce((a, c) => a + c.w, 0) + (chips.length - 1) * 10;
+    let x = cx - total / 2;
+    for (const chip of chips) {
+      ctx.fillStyle = 'rgba(16,22,48,0.9)';
+      ctx.strokeStyle = '#3a4670';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, x, y + 14, chip.w, 34, 8);
+      ctx.fill();
+      ctx.stroke();
+      const u = UPGRADE_POOL.find((x2) => x2.id === chip.id);
+      drawGlyph(ctx, u ? u.glyph : 'diamond', x + 20, y + 31, 18,
+        GLYPH_COLORS[chip.id] || COLORS.player);
+      ctx.fillStyle = COLORS.text;
+      ctx.font = '13px system-ui, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(chip.label, x + 32, y + 36);
+      ctx.textAlign = 'center';
+      x += chip.w + 10;
+    }
+  }
 }
 
 export function drawPause(ctx) {
@@ -493,13 +660,59 @@ export function drawWin(ctx, s, save) {
   dimOverlay(ctx, 0.72);
   const cx = FIELD.width / 2;
   ctx.textAlign = 'center';
+  // Gold banner: the achievement, first thing the eye reads.
   ctx.fillStyle = COLORS.gold;
-  ctx.font = 'bold 52px system-ui, sans-serif';
-  ctx.fillText('VOIDHEART DESTROYED', cx, 180);
+  ctx.font = 'bold 46px system-ui, sans-serif';
+  ctx.fillText('VOIDHEART DEFEATED', cx, 108);
+  // Wrecked-core emblem: a broken gold ring around a cracked dark core,
+  // with three drifting shards — the boss, destroyed, drawn in code.
+  ctx.save();
+  ctx.translate(cx, 178);
+  ctx.strokeStyle = COLORS.gold;
+  ctx.lineWidth = 4;
+  for (let i = 0; i < 3; i += 1) {
+    const a0 = i * (Math.PI * 2 / 3) + 0.25;
+    ctx.beginPath();
+    ctx.arc(0, 0, 44, a0, a0 + Math.PI * 2 / 3 - 0.5);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#1a0a2e';
+  ctx.beginPath();
+  ctx.arc(0, 0, 22, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#ff8ef5';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, -14);
+  ctx.lineTo(-2, -2);
+  ctx.lineTo(-10, 8);
+  ctx.moveTo(10, -10);
+  ctx.lineTo(2, 4);
+  ctx.lineTo(12, 12);
+  ctx.stroke();
+  ctx.fillStyle = COLORS.gold;
+  const shards = [[-62, -18, 7], [60, 6, 9], [-8, 58, 6]];
+  for (const [sx, sy, sr] of shards) {
+    ctx.save();
+    ctx.translate(sx, sy);
+    ctx.rotate(sx * 0.05);
+    ctx.beginPath();
+    ctx.moveTo(0, -sr);
+    ctx.lineTo(sr, 0);
+    ctx.lineTo(0, sr);
+    ctx.lineTo(-sr, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+  ctx.restore();
   ctx.fillStyle = COLORS.text;
   ctx.font = '17px system-ui, sans-serif';
-  ctx.fillText('Wave 10 is yours. The arena is quiet — for now.', cx, 220);
-  drawNewBest(ctx, s, 248);
-  drawStats(ctx, s, 272, save, true);
+  ctx.fillText('Wave 10 is yours. The arena is quiet — for now.', cx, 258);
+  ctx.fillStyle = COLORS.gold;
+  ctx.font = 'bold 16px system-ui, sans-serif';
+  ctx.fillText('★  10 WAVES  ·  3 ZONES  ·  1 FINAL BOSS  ★', cx, 288);
+  drawNewBest(ctx, s, 316);
+  drawStats(ctx, s, 338, save, true);
   for (const b of screenButtons(SCREEN_WIN, s)) drawButton(ctx, b, b.label, b.id === 'continue');
 }

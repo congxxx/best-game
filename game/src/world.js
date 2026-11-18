@@ -543,6 +543,7 @@ export class World {
     const s = this.state;
     const p = s.player;
     for (const g of s.gems) {
+      if (g.taken) continue; // Defensive: a gem already picked this step.
       g.bob += dt * 4;
       const dx = p.x - g.x;
       const dy = p.y - g.y;
@@ -568,9 +569,12 @@ export class World {
         this.burst(g.x, g.y, g.color, 5, 120, 0.3);
         s.sfx.push('gemPickup');
         this.gainXp(g.value);
-        if (s.phase !== 'play') return;
+        if (s.phase !== 'play') break;
       }
     }
+    // Always sweep taken gems, even when a pickup triggered a level-up
+    // and left the loop early: a taken gem left in the array would be
+    // collected again on the next step (same gem, double XP).
     s.gems = s.gems.filter((g) => !g.taken);
   }
 
