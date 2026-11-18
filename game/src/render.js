@@ -396,6 +396,8 @@ function drawHud(ctx, s) {
     ctx.fillStyle = (s.zone && s.zone.accent) || COLORS.player;
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillText(`— ${zoneName} —`, FIELD.width / 2, 30);
+    ctx.font = 'bold 12px monospace';
+    ctx.fillText(s.zone.fieldLabel, FIELD.width / 2, 49);
   }
   // Right-hand stats.
   ctx.textAlign = 'right';

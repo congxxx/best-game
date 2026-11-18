@@ -24,3 +24,7 @@ Then open http://localhost:8000 in desktop Chrome. No build step, no network: va
 - Collect XP gems, pick 1 of 3 upgrades on level-up, dodge the pink shots
 - P / Esc — pause; R — restart; 1 / 2 / 3 — pick a card
 - 5 enemy types plus gold elites every 3rd wave; wave-10 boss VOIDHEART, then endless mode
+- Each wave's sector changes your ship: Cyan Drift extends pickup range by 30%, Ember Reef boosts firing rate by 15%, and Violet Deep boosts movement speed by 12%. These effects switch with the sector and stack with your upgrade choices.
+- After defeat or victory, press Z for the zone map and choose an unlocked starting sector.
+
+To reproduce the four submission images, open the game at 1280 × 800 with a fresh profile: use `?shot=start&seed=1337`, `?shot=play&seed=1337`, `?shot=levelup&seed=1337` and `?shot=win&seed=9`, in that order.

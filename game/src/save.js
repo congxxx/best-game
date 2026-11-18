@@ -90,10 +90,12 @@ export function recordRun(save, state, outcome) {
     save.bestTime = state.time;
   }
   if (state.wave > save.maxWave) save.maxWave = state.wave;
-  save.runs += 1;
-  save.kills += state.kills || 0;
-  save.cores += (state.stats && state.stats.coresCollected) || 0;
-  persist(save);
-  state.runResult = { newBest, newZoneBest };
+  const previous = state.runResult;
+  const kills = state.kills || 0;
+  const cores = state.stats?.coresCollected || 0;
+  if (!previous) save.runs += 1;
+  save.kills += kills - (previous?.kills || 0);
+  save.cores += cores - (previous?.cores || 0);
+  state.runResult = { newBest, newZoneBest, kills, cores };
   return { save, newBest, newZoneBest };
 }

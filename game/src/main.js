@@ -77,6 +77,10 @@ function tryStartZone(zoneId) {
 }
 
 function handleKey() {
+  if ((screen === SCREEN_OVER || screen === SCREEN_WIN) && input.wasPressed('z')) {
+    showMap();
+    return;
+  }
   if (input.wasPressed('p') || input.wasPressed('escape')) {
     if (screen === SCREEN_PLAY) {
       screen = SCREEN_PAUSE;
@@ -109,7 +113,14 @@ function handleKey() {
   }
 }
 
+function showMap() {
+  audio.stopMusic();
+  world.state.titleNotice = null;
+  screen = SCREEN_TITLE;
+}
+
 function handleClick(clientX, clientY) {
+  if (shotMode) return;
   audio.ensure();
   const rect = canvas.getBoundingClientRect();
   const x = (clientX - rect.left - input.offsetX) / input.scale;
@@ -119,6 +130,7 @@ function handleClick(clientX, clientY) {
       audio.click();
       if (b.id === 'start') startRun(save.lastZone);
       else if (b.id === 'restart') startRun(save.lastZone);
+      else if (b.id === 'map') showMap();
       else if (b.id.startsWith('zone-')) {
         tryStartZone(b.id.slice(5));
       } else if (b.id === 'resume') {
@@ -162,9 +174,11 @@ function frame(timestamp) {
     if (world.state.phase === 'over') {
       screen = SCREEN_OVER;
       save = recordRun(save, world.state, 'over').save;
+      persistSave(save);
     } else if (world.state.phase === 'win') {
       screen = SCREEN_WIN;
       save = recordRun(save, world.state, 'win').save;
+      persistSave(save);
     } else if (world.state.phase === 'levelup') {
       screen = SCREEN_LEVELUP;
     }
